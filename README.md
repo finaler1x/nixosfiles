@@ -1,79 +1,148 @@
 # nix-infra
 
-NixOS multi-host configuration — VM, Homelab, WSL from one repo.
+NixOS homelab — NAS + two VMs managed from one repo.
 
 ## Hosts
 
-| Host | Description | Rebuild |
-|------|-------------|---------|
-| `vm` | VirtualBox VM (Playground) | `sudo nixos-rebuild switch --flake .#vm` |
-| `homelab` | Server (Nextcloud, Immich, Samba, ...) | `sudo nixos-rebuild switch --flake .#homelab` |
-| `wsl` | Windows WSL (Dev Environment) | `sudo nixos-rebuild switch --flake .#wsl` |
+| Host | Machine | RAM | Rebuild |
+|------|---------|-----|---------|
+| `homelab` | NAS (24/7) | 8GB | `sudo nixos-rebuild switch --flake .#homelab` |
+| `service-vm` | Gaming Rig (Hyper-V) | 8GB | `nixos-rebuild switch --flake .#service-vm --target-host antonio@service-vm.home.local --use-remote-sudo` |
+| `dev-vm` | Gaming Rig (Hyper-V) | 4GB | `nixos-rebuild switch --flake .#dev-vm --target-host antonio@dev-vm.home.local --use-remote-sudo` |
+| `wsl` | Dev Machine | — | `sudo nixos-rebuild switch --flake .#wsl` |
 
-## WSL Installation
+## Services
 
-```powershell
-# 1. NixOS-WSL runterladen von https://github.com/nix-community/NixOS-WSL/releases
-# 2. Doppelklick auf nixos.wsl (oder:)
-wsl --install --from-file nixos.wsl
-
-# 3. NixOS starten
-wsl -d NixOS
-
-# 4. Repo clonen
-nix-shell -p git
-git clone git@github.com:YOUR_USER/nix-infra.git ~/nix-infra
-sudo ln -sf ~/nix-infra /etc/nixos
-
-# 5. Rebuild
-sudo nixos-rebuild switch --flake /etc/nixos#wsl
+All web UIs are at `*.home.local` — requires AdGuard DNS rewrites pointing to the NAS IP.
+TLS via Caddy's internal CA (`local_certs`). Import the root cert once per device:
+```bash
+docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 ```
 
-## Homelab Services
+### NAS (docker/nas/)
 
-| Service | URL | Port |
-|---------|-----|------|
-| Nextcloud | nextcloud.homelab.ts.net | 8080 |
-| Immich | photos.homelab.ts.net | 2283 |
-| AdGuard Home | adguard.homelab.ts.net | 3000 |
-| Vaultwarden | vault.homelab.ts.net | 8222 |
-| Uptime Kuma | status.homelab.ts.net | 3001 |
-| Samba | \\\\homelab-ip\data | 445 |
+| Domain | Service |
+|--------|---------|
+| `adguard.home.local` | AdGuard Home — DNS + ad blocker |
+| `files.home.local` | Filebrowser — web file manager |
+| `sync.home.local` | Syncthing — device sync |
+| `dash.home.local` | Homarr — dashboard |
+| `vault.home.local` | Vaultwarden — password manager |
+| `status.home.local` | Uptime Kuma — monitoring |
+| `ntfy.home.local` | Ntfy — push notifications |
+
+### service-vm (docker/service-vm/)
+
+| Domain | Service |
+|--------|---------|
+| `photos.home.local` | Immich — photo/video management |
+| `docs.home.local` | Paperless-ngx — document management |
+
+### dev-vm (docker/dev-vm/)
+
+| Domain | Service |
+|--------|---------|
+| `git.home.local` | Forgejo — Git server |
+| `code.home.local` | Code Server — VS Code in browser |
+| `portainer.home.local` | Portainer — Docker management |
+| `logs.home.local` | Dozzle — container logs |
+
+## Storage (NAS)
+
+```
+/mnt/storage/          ← mergerfs pool (4x 4TB, epmfs)
+  media/               ← photos, videos, music
+  documents/           ← paperless, scans
+  backups/             ← restic targets, manual backups
+  shares/              ← general file sharing (Samba)
+  syncthing/           ← Syncthing data
+  docker/
+    nas/               ← NAS container data
+    service-vm/        ← service-vm container data (NFS-mounted in VM)
+    dev-vm/            ← dev-vm container data (NFS-mounted in VM)
+/mnt/parity1/          ← SnapRAID parity (1x 4TB)
+```
 
 ## Structure
 
 ```
-├── flake.nix              # Entry point, all hosts
-├── hosts/
-│   ├── vm/                # VM config
-│   ├── homelab/           # Server config
-│   └── wsl/               # WSL dev environment
-├── modules/
-│   ├── common.nix         # Shared across all hosts
-│   └── server/            # Server-only modules
-└── home/                  # Home Manager (shared dotfiles)
+flake.nix
+.sops.yaml                     # sops-nix key configuration
+secrets/
+  nas.yaml                     # encrypted secrets (safe to commit)
+  nas.yaml.example             # plain-text structure reference
+hosts/
+  homelab/                     # NAS
+  service-vm/                  # Immich + Paperless VM
+  dev-vm/                      # Dev tools VM
+  wsl/                         # WSL dev environment
+modules/
+  common.nix                   # shared: locale, user, base packages
+  tailscale.nix                # Tailscale + subnet router
+  secrets.nix                  # sops-nix secret declarations
+  server/
+    storage.nix                # mergerfs mounts + directory structure
+    snapraid.nix               # SnapRAID + systemd timers
+    samba.nix                  # Samba shares
+    nfs.nix                    # NFS exports to VMs
+    docker.nix                 # Docker daemon
+    firewall.nix               # firewall rules
+    monitoring.nix             # smartd SMART monitoring
+    backup.nix                 # restic backups
+    wol.nix                    # Wake-on-LAN (wake-gaming / sleep-gaming)
+docker/
+  nas/
+    docker-compose.yml
+    Caddyfile
+    .env.example               → cp to .env and fill in
+  service-vm/
+    docker-compose.yml
+    .env.example
+  dev-vm/
+    docker-compose.yml
+    .env.example
+home/                          # Home Manager dotfiles (shared)
 ```
 
-## Quick Start
+## Docs
+
+- **[docs/setup.md](docs/setup.md)** — full setup guide, phase by phase
+- **[docs/todo.md](docs/todo.md)** — what still needs to be done
+
+## Common Commands
 
 ```bash
-# Rebuild
+# Rebuild local host
 sudo nixos-rebuild switch --flake /etc/nixos#HOSTNAME
 
-# Update all inputs
-nix flake update --flake /etc/nixos
+# Update all flake inputs
+nix flake update
 sudo nixos-rebuild switch --flake /etc/nixos#HOSTNAME
 
 # Rollback
 sudo nixos-rebuild switch --rollback
 
-# Remote rebuild homelab
-nixos-rebuild switch --flake .#homelab \
-  --target-host antonio@homelab \
-  --use-remote-sudo
+# Edit secrets
+sops secrets/nas.yaml
+
+# Wake gaming rig / shut it down
+wake-gaming
+sleep-gaming
 ```
 
-## TODO
+## sops-nix Setup (run once per machine)
 
-- [ ] sops-nix for secrets
-- [ ] Auto-updates for homelab
+```bash
+# 1. Get the host's age public key
+nix-shell -p ssh-to-age --run \
+  "ssh-to-age -i /etc/ssh/ssh_host_ed25519_key.pub"
+
+# 2. Generate your personal age key (for editing secrets locally)
+nix-shell -p age --run "age-keygen -o ~/.config/sops/age/keys.txt"
+age-keygen -y ~/.config/sops/age/keys.txt   # print public key
+
+# 3. Put both public keys in .sops.yaml
+
+# 4. Create secrets (uses structure from secrets/nas.yaml.example)
+sops secrets/nas.yaml
+```

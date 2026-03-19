@@ -1,0 +1,145 @@
+services:
+
+  # ── Caddy (Reverse Proxy) ─────────────────────────────
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /mnt/storage/docker/nas/caddy/data:/data
+      - /mnt/storage/docker/nas/caddy/config:/config
+    env_file: .env
+    networks:
+      - homelab
+
+  # ── AdGuard Home (DNS + Ad Blocker) ───────────────────
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      # Port 3000 (web UI) not exposed on host — Caddy proxies to it
+    volumes:
+      - /mnt/storage/docker/nas/adguard/work:/opt/adguardhome/work
+      - /mnt/storage/docker/nas/adguard/conf:/opt/adguardhome/conf
+    networks:
+      - homelab
+    # First run: access http://NAS_IP:3000 to complete setup wizard.
+    # Afterwards configure:
+    #   Upstream DNS: 1.1.1.1, 9.9.9.9
+    #   DNS rewrites: *.home.local → NAS_IP
+
+  # ── Filebrowser ───────────────────────────────────────
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    restart: unless-stopped
+    volumes:
+      - /mnt/storage:/srv
+      - /mnt/storage/docker/nas/filebrowser/database.db:/database.db
+      - /mnt/storage/docker/nas/filebrowser/settings.json:/.filebrowser.json
+    networks:
+      - homelab
+
+  # ── Syncthing ─────────────────────────────────────────
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: syncthing
+    restart: unless-stopped
+    hostname: homelab
+    ports:
+      - "22000:22000/tcp"   # Sync protocol (TCP)
+      - "22000:22000/udp"   # Sync protocol (QUIC)
+      - "21027:21027/udp"   # Local discovery
+      # Port 8384 (web UI) not exposed — Caddy proxies to it
+    volumes:
+      - /mnt/storage/syncthing:/var/syncthing
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+    networks:
+      - homelab
+
+  # ── Homarr (Dashboard) ────────────────────────────────
+  homarr:
+    image: ghcr.io/ajnart/homarr:latest
+    container_name: homarr
+    restart: unless-stopped
+    volumes:
+      - /mnt/storage/docker/nas/homarr/configs:/app/data/configs
+      - /mnt/storage/docker/nas/homarr/icons:/app/public/icons
+      - /mnt/storage/docker/nas/homarr/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab
+
+  # ── Watchtower (Auto-Updates) ─────────────────────────
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *   # daily at 04:00
+      - TZ=${TZ}
+
+  # ── Vaultwarden (Password Manager) ────────────────────
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - /mnt/storage/docker/nas/vaultwarden:/data
+      - /run/secrets/vaultwarden/admin_token:/run/secrets/admin_token:ro
+    environment:
+      - DOMAIN=https://vault.home.local
+      - SIGNUPS_ALLOWED=false   # set to true only during initial account creation
+      - ADMIN_TOKEN_FILE=/run/secrets/admin_token
+    networks:
+      - homelab
+
+  # ── Uptime Kuma (Monitoring) ──────────────────────────
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - /mnt/storage/docker/nas/uptime-kuma:/app/data
+    networks:
+      - homelab
+    # Configure monitors in the web UI.
+    # For VM services: add maintenance windows for when gaming rig is off.
+    # Connect Ntfy as notification provider.
+
+  # ── Ntfy (Push Notifications) ─────────────────────────
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    restart: unless-stopped
+    command: serve
+    ports:
+      - "127.0.0.1:8082:80"   # localhost only — NixOS services (smartd) send alerts here
+    volumes:
+      - /mnt/storage/docker/nas/ntfy:/var/lib/ntfy
+    environment:
+      - NTFY_BASE_URL=https://ntfy.home.local
+      - NTFY_BEHIND_PROXY=true
+    networks:
+      - homelab
+    # Subscribe on phone: https://ntfy.home.local/homelab-alerts
+    # SMART alerts use topic: homelab-alerts
+    # Uptime Kuma alerts: configure in Uptime Kuma UI → Notifications → Ntfy
+
+
+networks:
+  homelab:
+    driver: bridge

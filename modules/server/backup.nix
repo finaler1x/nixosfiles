@@ -1,7 +1,7 @@
 { config, pkgs, ... }:
 
 {
-  # Externe Backup-Platte (UUID anpassen nach blkid)
+  # External backup drive (adjust UUID after: sudo blkid)
   fileSystems."/mnt/backup" = {
     device = "/dev/disk/by-uuid/BACKUP-UUID";
     fsType = "ext4";
@@ -11,13 +11,18 @@
   services.restic.backups.homelab = {
     initialize = true;
     paths = [
-      "/mnt/data"                  # Samba/MergerFS Daten
-      "/var/lib/nextcloud"         # Nextcloud Daten
-      "/var/lib/postgresql"        # Datenbank
-      "/var/lib/vaultwarden"       # Passwörter
+      "/mnt/storage/documents"       # Documents (high priority)
+      "/mnt/storage/backups"         # User backups
+      "/mnt/storage/shares"          # Shared files
+      "/mnt/storage/docker/nas"      # NAS container configs + data
+      "/var/lib/vaultwarden"         # Passwords (critical, if NixOS module active)
+      "/etc/nixos"                   # NixOS configuration
     ];
+    # Note: /mnt/storage/media is large — back up separately or exclude.
+    # Note: docker/service-vm and docker/dev-vm are backed up on those VMs.
+
     repository = "/mnt/backup/restic-repo";
-    passwordFile = "/run/secrets/restic-password";
+    passwordFile = config.sops.secrets."restic/password".path;
 
     timerConfig = {
       OnCalendar = "03:00";

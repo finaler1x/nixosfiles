@@ -4,38 +4,48 @@
   environment.systemPackages = with pkgs; [ snapraid ];
 
   environment.etc."snapraid.conf".text = ''
-    # Parity Disk
+    # ── Parity disk ───────────────────────────────────────
     parity /mnt/parity1/snapraid.parity
 
-    # Daten Disks
+    # ── Data disks (4x 4TB) ───────────────────────────────
     data d1 /mnt/disk1/
     data d2 /mnt/disk2/
     data d3 /mnt/disk3/
     data d4 /mnt/disk4/
-    data d5 /mnt/disk5/
 
-    # Content Files (auf verschiedenen Disks für Redundanz)
+    # ── Content files (distributed for redundancy) ────────
     content /var/lib/snapraid/snapraid.content
     content /mnt/disk1/.snapraid.content
     content /mnt/disk2/.snapraid.content
 
-    # Ausschlüsse
+    # ── Exclusions ────────────────────────────────────────
     exclude *.unrecoverable
     exclude /tmp/
     exclude /lost+found/
     exclude .Trash-*/
+    exclude *.part
+    exclude *.!qb
+    exclude .thumbnails/
+    exclude .cache/
+    exclude .Thumbnails/
+    exclude /docker/
+    exclude *.log
+    exclude *.pid
   '';
 
   systemd.tmpfiles.rules = [
     "d /var/lib/snapraid 0755 root root -"
   ];
 
-  # Täglicher Sync um 4 Uhr nachts
+  # ── Daily sync at 04:00 ───────────────────────────────
   systemd.services.snapraid-sync = {
     description = "SnapRAID Sync";
+    after = [ "mnt-storage.mount" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${pkgs.snapraid}/bin/snapraid sync";
+      Nice = 19;
+      IOSchedulingClass = "idle";
     };
   };
 
@@ -47,12 +57,15 @@
     };
   };
 
-  # Wöchentlicher Scrub
+  # ── Weekly scrub Sunday 05:00 (10% of data) ──────────
   systemd.services.snapraid-scrub = {
     description = "SnapRAID Scrub";
+    after = [ "mnt-storage.mount" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${pkgs.snapraid}/bin/snapraid scrub -p 10 -o 0";
+      Nice = 19;
+      IOSchedulingClass = "idle";
     };
   };
 

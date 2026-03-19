@@ -3,52 +3,61 @@
 {
   environment.systemPackages = with pkgs; [ mergerfs ];
 
-  # Jede Datenplatte einzeln mounten
-  # UUIDs anpassen nach: sudo blkid
+  # ── Individual disk mounts ─────────────────────────────
+  # Adjust UUIDs after: sudo blkid
   fileSystems."/mnt/disk1" = {
-    device = "/dev/disk/by-uuid/UUID-PLATTE-1";
+    device = "/dev/disk/by-uuid/UUID-DISK-1";
     fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "defaults" ];
   };
   fileSystems."/mnt/disk2" = {
-    device = "/dev/disk/by-uuid/UUID-PLATTE-2";
+    device = "/dev/disk/by-uuid/UUID-DISK-2";
     fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "defaults" ];
   };
   fileSystems."/mnt/disk3" = {
-    device = "/dev/disk/by-uuid/UUID-PLATTE-3";
+    device = "/dev/disk/by-uuid/UUID-DISK-3";
     fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "defaults" ];
   };
   fileSystems."/mnt/disk4" = {
-    device = "/dev/disk/by-uuid/UUID-PLATTE-4";
+    device = "/dev/disk/by-uuid/UUID-DISK-4";
     fsType = "ext4";
-    options = [ "nofail" ];
-  };
-  fileSystems."/mnt/disk5" = {
-    device = "/dev/disk/by-uuid/UUID-PLATTE-5";
-    fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "defaults" ];
   };
 
-  # disk6 = Parity für SnapRAID
+  # ── Parity disk (SnapRAID) ────────────────────────────
   fileSystems."/mnt/parity1" = {
-    device = "/dev/disk/by-uuid/UUID-PLATTE-6";
+    device = "/dev/disk/by-uuid/UUID-PARITY-1";
     fsType = "ext4";
-    options = [ "nofail" ];
+    options = [ "nofail" "defaults" ];
   };
 
-  # MergerFS: vereint disk1-5 zu einem Pool
-  fileSystems."/mnt/data" = {
-    device = "/mnt/disk1:/mnt/disk2:/mnt/disk3:/mnt/disk4:/mnt/disk5";
+  # ── MergerFS: pool disk1–4 → /mnt/storage ─────────────
+  # epmfs = existing path, most free space (balances across disks)
+  fileSystems."/mnt/storage" = {
+    device = "/mnt/disk1:/mnt/disk2:/mnt/disk3:/mnt/disk4";
     fsType = "fuse.mergerfs";
     options = [
       "defaults"
       "allow_other"
       "use_ino"
-      "category.create=mfs"
+      "category.create=epmfs"
       "minfreespace=20G"
       "fsname=mergerfs"
     ];
   };
+
+  # ── Directory structure ───────────────────────────────
+  systemd.tmpfiles.rules = [
+    "d /mnt/storage/media              0775 antonio users -"
+    "d /mnt/storage/documents          0775 antonio users -"
+    "d /mnt/storage/backups            0775 antonio users -"
+    "d /mnt/storage/shares             0775 antonio users -"
+    "d /mnt/storage/docker             0775 antonio users -"
+    "d /mnt/storage/docker/nas         0775 antonio users -"
+    "d /mnt/storage/docker/service-vm  0775 antonio users -"
+    "d /mnt/storage/docker/dev-vm      0775 antonio users -"
+    "d /mnt/storage/syncthing          0775 antonio users -"
+  ];
 }

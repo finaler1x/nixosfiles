@@ -1,0 +1,69 @@
+services:
+
+  # ── Forgejo (Git Server) ──────────────────────────────
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:latest
+    container_name: forgejo
+    restart: unless-stopped
+    ports:
+      - "3000:3000"    # HTTP (Caddy on NAS routes git.home.local here)
+      - "2222:22"      # SSH for git push/pull
+    volumes:
+      - /mnt/nas/docker/forgejo:/data
+    environment:
+      - USER_UID=${PUID}
+      - USER_GID=${PGID}
+      - FORGEJO__server__DOMAIN=git.home.local
+      - FORGEJO__server__ROOT_URL=https://git.home.local
+      - FORGEJO__server__SSH_DOMAIN=dev-vm.home.local
+      - FORGEJO__server__SSH_PORT=2222
+    networks:
+      - dev
+
+  # ── Code Server (VS Code in Browser) ─────────────────
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+    ports:
+      - "8080:8443"    # Caddy routes code.home.local here
+    volumes:
+      - /mnt/nas/docker/code-server:/config
+      - /mnt/nas/storage:/mnt/storage:ro  # Browse full pool (read-only)
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - PASSWORD=${CODE_SERVER_PASSWORD}
+      - DEFAULT_WORKSPACE=/mnt/storage
+    networks:
+      - dev
+
+  # ── Portainer (Docker Management UI) ─────────────────
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"    # Caddy routes portainer.home.local here
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/nas/docker/portainer:/data
+    networks:
+      - dev
+
+  # ── Dozzle (Container Logs) ───────────────────────────
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    ports:
+      - "8081:8080"    # Caddy routes logs.home.local here (mapped from 8080→8081)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dev
+
+networks:
+  dev:
+    driver: bridge

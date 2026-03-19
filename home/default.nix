@@ -6,7 +6,6 @@
     ./zsh.nix
     ./neovim.nix
     ./tmux.nix
-    ./ghostty.nix
   ];
 
   home.username = "antonio";

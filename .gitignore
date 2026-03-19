@@ -1,3 +1,10 @@
 result
 .direnv
 .idea
+
+# Docker secrets — never commit actual .env files
+docker/**/.env
+
+# sops age private key — NEVER commit this
+keys.txt
+age.key

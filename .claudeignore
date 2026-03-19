@@ -1,0 +1,44 @@
+# Environment files
+.env
+.env.*
+*.env
+
+# Secrets and keys
+*.key
+*.pem
+*.p12
+secrets.yml
+secrets.yaml
+
+# Config files that might contain secrets
+config/local.yml
+config/production.yml
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Node modules and dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+dist/
+build/
+target/
+bin/
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
