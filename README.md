@@ -8,7 +8,7 @@ NixOS homelab — NAS + two VMs managed from one repo.
 |------|---------|-----|---------|
 | `homelab` | NAS (24/7) | 8GB | `sudo nixos-rebuild switch --flake .#homelab` |
 | `service-vm` | Gaming Rig (Hyper-V) | 8GB | `nixos-rebuild switch --flake .#service-vm --target-host antonio@service-vm.home.local --use-remote-sudo` |
-| `dev-vm` | Gaming Rig (Hyper-V) | 4GB | `nixos-rebuild switch --flake .#dev-vm --target-host antonio@dev-vm.home.local --use-remote-sudo` |
+| `dev-vm` | Dev VM (VirtualBox) | 4GB | `sudo nixos-rebuild switch --flake .#dev-vm` |
 | `wsl` | Dev Machine | — | `sudo nixos-rebuild switch --flake .#wsl` |
 
 ## Services

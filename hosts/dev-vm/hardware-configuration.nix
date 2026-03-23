@@ -7,12 +7,21 @@
   # Run that command on the actual VM after installing NixOS.
 
   imports = [
-    (modulesPath + "/profiles/hyperv-guest.nix")
+    (modulesPath + "/profiles/qemu-guest.nix")
   ];
 
   boot.initrd.availableKernelModules = [
-    "hv_vmbus" "hv_storvsc" "hv_blkvsc" "hv_netvsc"
-    "sd_mod" "sr_mod"
+    "ata_piix"
+    "ohci_pci"
+    "ehci_pci"
+    "ahci"
+    "xhci_pci"
+    "virtio_pci"
+    "virtio_scsi"
+    "virtio_blk"
+    "virtio_net"
+    "sd_mod"
+    "sr_mod"
   ];
   boot.initrd.kernelModules = [];
   boot.kernelModules = [];

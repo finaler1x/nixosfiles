@@ -11,9 +11,24 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # VirtualBox guest support
+  services.virtualboxGuest.enable = true;
+
   # ── Netzwerk ──────────────────────────────────────────
   networking.hostName = "dev-vm";
   networking.networkmanager.enable = true;
+
+  # ── Dev Tools ─────────────────────────────────────────
+  programs.git.enable = true;
+  programs.direnv.enable = true;
+  programs.nix-ld.enable = true;
+  programs.vscode.enable = true;
+
+  environment.systemPackages = with pkgs; [
+    gh
+    lazygit
+    nixfmt-rfc-style
+  ];
 
   # ── SSH ───────────────────────────────────────────────
   services.openssh.settings = {
@@ -21,37 +36,15 @@
     PasswordAuthentication = false;
   };
 
-  # ── NFS Mounts from NAS ──────────────────────────────
-  # Replace NAS_IP with the actual IP of your homelab NAS.
-  fileSystems."/mnt/nas/storage" = {
-    device = "NAS_IP:/mnt/storage";
-    fsType = "nfs";
-    options = [
-      "soft" "timeo=150" "nofail"
-      "x-systemd.automount"
-      "x-systemd.idle-timeout=600"
-      "x-systemd.mount-timeout=10"
-    ];
-  };
-
-  fileSystems."/mnt/nas/docker" = {
-    device = "NAS_IP:/mnt/storage/docker/dev-vm";
-    fsType = "nfs";
-    options = [
-      "soft" "timeo=150" "nofail"
-      "x-systemd.automount"
-      "x-systemd.idle-timeout=600"
-      "x-systemd.mount-timeout=10"
-    ];
-  };
+  # ── Docker ────────────────────────────────────────────
+  virtualisation.docker.enable = true;
+  users.users.antonio.extraGroups = [ "docker" ];
 
   # ── Firewall ──────────────────────────────────────────
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [
-      22   # SSH
-      2222 # Forgejo SSH (git push/pull)
-      # Web services (3000, 8080, 9000, 8081) only reachable via Caddy on NAS
+      22
     ];
   };
 
