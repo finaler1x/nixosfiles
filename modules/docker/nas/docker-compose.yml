@@ -120,6 +120,31 @@ services:
     # For VM services: add maintenance windows for when gaming rig is off.
     # Connect Ntfy as notification provider.
 
+  # ── Portainer (Docker Management UI) ─────────────────
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/storage/docker/nas/portainer:/data
+    networks:
+      - homelab
+    # Add service-vm and dev-vm as environments via UI → Environments → Add → Agent
+    # Point to SERVICE_VM_IP:9001 and DEV_VM_IP:9001
+
+  # ── Dozzle (Container Logs) ───────────────────────────
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    environment:
+      - DOZZLE_REMOTE_HOST=agent://${SERVICE_VM_IP}:7007|service-vm,agent://${DEV_VM_IP}:7007|dev-vm
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab
+
   # ── Ntfy (Push Notifications) ─────────────────────────
   ntfy:
     image: binwiederhier/ntfy:latest

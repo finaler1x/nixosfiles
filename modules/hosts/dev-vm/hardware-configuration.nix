@@ -5,6 +5,12 @@
   # Replace this file with the output of:
   #   nixos-generate-config --show-hardware-config
   # Run that command on the actual VM after installing NixOS.
+  #
+  # ── Hypervisor guest additions ────────────────────────
+  # Enable the one that matches your hypervisor:
+  #   VirtualBox: virtualisation.virtualbox.guest.enable = true;
+  #   VMware:     virtualisation.vmware.guest.enable = true;
+  #   QEMU/KVM:   services.qemuGuest.enable = true; (covered by qemu-guest.nix above)
 
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")

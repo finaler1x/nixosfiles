@@ -3,23 +3,23 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/common.nix
-    ../../modules/tailscale.nix
-    ../../modules/secrets.nix
+    ../../nixos/common.nix
+    ../../nixos/tailscale.nix
+    ../../nixos/secrets.nix
     # ── Storage ──────────────────────────────────────────
-    ../../modules/server/storage.nix
-    ../../modules/server/snapraid.nix
+    ../../nixos/server/storage.nix
+    ../../nixos/server/snapraid.nix
     # ── Network shares ───────────────────────────────────
-    ../../modules/server/samba.nix
-    ../../modules/server/nfs.nix
+    ../../nixos/server/samba.nix
+    ../../nixos/server/nfs.nix
     # ── Docker ───────────────────────────────────────────
-    ../../modules/server/docker.nix
+    ../../nixos/server/docker.nix
     # ── Network ──────────────────────────────────────────
-    ../../modules/server/firewall.nix
+    ../../nixos/server/firewall.nix
     # ── Maintenance ──────────────────────────────────────
-    ../../modules/server/monitoring.nix
-    ../../modules/server/backup.nix
-    ../../modules/server/wol.nix
+    ../../nixos/server/monitoring.nix
+    ../../nixos/server/backup.nix
+    ../../nixos/server/wol.nix
   ];
 
   boot.loader.systemd-boot.enable = true;

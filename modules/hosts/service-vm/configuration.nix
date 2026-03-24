@@ -3,8 +3,8 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/common.nix
-    ../../modules/server/docker.nix
+    ../../nixos/common.nix
+    ../../nixos/server/docker.nix
   ];
 
   # ── Boot ──────────────────────────────────────────────

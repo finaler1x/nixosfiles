@@ -2,8 +2,8 @@
 
 {
   imports = [
-    ../../modules/common.nix
-    ../../modules/tailscale.nix
+    ../../nixos/common.nix
+    ../../nixos/tailscale.nix
   ];
 
   # ── WSL ───────────────────────────────────────────────

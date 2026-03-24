@@ -15,70 +15,14 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    import-tree.url = "github:vic/import-tree";
+    wrapper-modules.url = "github:BirdeeHub/nix-wrapper-modules";
   };
 
-  outputs = { self, nixpkgs, home-manager, nixos-wsl, sops-nix, ... }: {
-
-    # ── Homelab NAS (24/7) ───────────────────────────────
-    nixosConfigurations.homelab = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        sops-nix.nixosModules.sops
-        ./hosts/homelab/configuration.nix
-        home-manager.nixosModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.antonio = import ./home;
-        }
-      ];
+  outputs = inputs@{ flake-parts, import-tree, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ (import-tree ./modules) ];
+      systems = [ "x86_64-linux" ];
     };
-
-    # ── Service VM (Immich, Paperless) ────────────────────
-    # Deploy: nixos-rebuild switch --flake .#service-vm --target-host antonio@service-vm.home.local
-    nixosConfigurations.service-vm = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        sops-nix.nixosModules.sops
-        ./hosts/service-vm/configuration.nix
-        home-manager.nixosModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.antonio = import ./home;
-        }
-      ];
-    };
-
-    # ── Dev VM (Forgejo, Code Server, Portainer, Dozzle) ──
-    # Deploy: nixos-rebuild switch --flake .#dev-vm --target-host antonio@dev-vm.home.local
-    nixosConfigurations.dev-vm = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        sops-nix.nixosModules.sops
-        ./hosts/dev-vm/configuration.nix
-        home-manager.nixosModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.antonio = import ./home;
-        }
-      ];
-    };
-
-    # ── WSL (Dev Environment) ─────────────────────────
-    nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        nixos-wsl.nixosModules.wsl
-        ./hosts/wsl/configuration.nix
-        home-manager.nixosModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.antonio = import ./home;
-        }
-      ];
-    };
-  };
 }

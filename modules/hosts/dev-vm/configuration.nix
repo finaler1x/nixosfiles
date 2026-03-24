@@ -3,20 +3,18 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/common.nix
-    ../../modules/server/docker.nix
+    ../../nixos/common.nix
+    ../../nixos/server/docker.nix
   ];
 
   # ── Boot ──────────────────────────────────────────────
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # VirtualBox guest support
-  services.virtualboxGuest.enable = true;
+  boot.loader.grub.enable = true;
+  boot.loader.grub.device = "/dev/sda";
 
   # ── Netzwerk ──────────────────────────────────────────
   networking.hostName = "dev-vm";
   networking.networkmanager.enable = true;
+
 
   # ── Dev Tools ─────────────────────────────────────────
   programs.git.enable = true;
@@ -28,7 +26,7 @@
     gh
     lazygit
     nixfmt-rfc-style
-  ];
+];
 
   # ── SSH ───────────────────────────────────────────────
   services.openssh.settings = {
