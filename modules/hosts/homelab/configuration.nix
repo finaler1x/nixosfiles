@@ -7,19 +7,19 @@
     ../../nixos/tailscale.nix
     ../../nixos/secrets.nix
     # ── Storage ──────────────────────────────────────────
-    ../../nixos/server/storage.nix
-    ../../nixos/server/snapraid.nix
+#    ../../nixos/server/storage.nix
+#    ../../nixos/server/snapraid.nix
     # ── Network shares ───────────────────────────────────
-    ../../nixos/server/samba.nix
-    ../../nixos/server/nfs.nix
+#    ../../nixos/server/samba.nix
+#    ../../nixos/server/nfs.nix
     # ── Docker ───────────────────────────────────────────
     ../../nixos/server/docker.nix
     # ── Network ──────────────────────────────────────────
     ../../nixos/server/firewall.nix
     # ── Maintenance ──────────────────────────────────────
-    ../../nixos/server/monitoring.nix
-    ../../nixos/server/backup.nix
-    ../../nixos/server/wol.nix
+#    ../../nixos/server/monitoring.nix
+#    ../../nixos/server/backup.nix
+#    ../../nixos/server/wol.nix
   ];
 
   boot.loader.systemd-boot.enable = true;
