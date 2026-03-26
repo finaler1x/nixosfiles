@@ -14,9 +14,12 @@
   nixpkgs.config.allowUnfree = true;
 
   # ── User ──────────────────────────────────────────────
+  users.users.root.initialPassword = "root";
+
   users.users.antonio = {
     isNormalUser = true;
     description = "Antonio";
+    initialPassword = "";
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [
       # SSH Public Key
