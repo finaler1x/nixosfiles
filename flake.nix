@@ -16,13 +16,17 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-parts.url = "github:hercules-ci/flake-parts";
-    import-tree.url = "github:vic/import-tree";
     wrapper-modules.url = "github:BirdeeHub/nix-wrapper-modules";
   };
 
-  outputs = inputs@{ flake-parts, import-tree, ... }:
+  outputs = inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ (import-tree ./modules) ];
+      imports = [
+        ./modules/hosts/homelab/default.nix
+#        ./modules/hosts/wsl/default.nix
+#        ./modules/hosts/dev-vm/default.nix
+#        ./modules/hosts/service-vm/default.nix
+      ];
       systems = [ "x86_64-linux" ];
     };
 }

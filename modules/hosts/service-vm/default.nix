@@ -9,7 +9,7 @@
       {
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
-        home-manager.users.antonio = import ../../home;
+        home-manager.users.antonio = import ../../packages/home;
       }
     ];
   };
