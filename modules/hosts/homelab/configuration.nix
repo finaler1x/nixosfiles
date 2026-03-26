@@ -5,7 +5,7 @@
     ./hardware-configuration.nix
     ../../nixos/common.nix
     ../../nixos/tailscale.nix
-    ../../nixos/secrets.nix
+#    ../../nixos/secrets.nix
     # ── Storage ──────────────────────────────────────────
 #    ../../nixos/server/storage.nix
 #    ../../nixos/server/snapraid.nix
