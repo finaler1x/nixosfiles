@@ -33,6 +33,13 @@
     PasswordAuthentication = false;
   };
 
+  # ── Cockpit ──────────────────────────────────────────
+  services.cockpit = {
+    enable = true;
+    port = 9090;
+    openFirewall = true;
+  };
+
   nix.gc = {
     automatic = true;
     dates = "weekly";
