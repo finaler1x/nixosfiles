@@ -11,7 +11,6 @@
     '';
 
     shellAliases = {
-      rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#$(hostname)";
       ll = "ls -la";
       ".." = "cd ..";
       "..." = "cd ../..";

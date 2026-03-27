@@ -1,14 +1,8 @@
 {
-  description = "NixOS Multi-Host Infrastructure";
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager = {
       url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    nixos-wsl = {
-      url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     sops-nix = {
@@ -24,7 +18,7 @@
       imports = [
         ./modules/hosts/homelab/default.nix
 #        ./modules/hosts/dev-vm/default.nix
-      ];
-      systems = [ "x86_64-linux" ];
+          ];
+          systems = [ "x86_64-linux" ];
     };
 }
