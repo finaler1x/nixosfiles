@@ -16,7 +16,7 @@ TLS via Caddy's internal CA (`local_certs`). Import the root cert once per devic
 docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 ```
 
-### NAS (modules/docker/nas/)
+### homelab (modules/docker/homelab/)
 
 | Domain | Service |
 |--------|---------|
@@ -27,6 +27,10 @@ docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 | `vault.home.local` | Vaultwarden — password manager |
 | `status.home.local` | Uptime Kuma — monitoring |
 | `ntfy.home.local` | Ntfy — push notifications |
+| `photos.home.local` | Immich — photo/video management |
+| `docs.home.local` | Paperless-ngx — document management |
+| `portainer.home.local` | Portainer — Docker management |
+| `logs.home.local` | Dozzle — container logs |
 
 Cockpit is available at `http://homelab:9090`.
 
@@ -40,7 +44,7 @@ Cockpit is available at `http://homelab:9090`.
   shares/              ← general file sharing (Samba)
   syncthing/           ← Syncthing data
   docker/
-    nas/               ← NAS container data
+    homelab/           ← container data (caddy, adguard, vaultwarden, etc.)
 /mnt/parity1/          ← SnapRAID parity (1x 4TB)
 ```
 
@@ -72,7 +76,7 @@ modules/
       backup.nix                    # restic backups
       wol.nix                       # Wake-on-LAN
   docker/
-    nas/
+    homelab/
       docker-compose.yml
       Caddyfile
       .env.example                  → cp to .env and fill in
