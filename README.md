@@ -1,15 +1,12 @@
 # nix-infra
 
-NixOS homelab — NAS + two VMs managed from one repo.
+NixOS homelab — NAS managed from one repo.
 
 ## Hosts
 
-| Host | Machine | RAM | Rebuild |
-|------|---------|-----|---------|
-| `homelab` | NAS (24/7) | 8GB | `sudo nixos-rebuild switch --flake .#homelab` |
-| `service-vm` | Gaming Rig (Hyper-V) | 8GB | `nixos-rebuild switch --flake .#service-vm --target-host antonio@service-vm.home.local --use-remote-sudo` |
-| `dev-vm` | Dev VM (VirtualBox) | 4GB | `sudo nixos-rebuild switch --flake .#dev-vm` |
-| `wsl` | Dev Machine | — | `sudo nixos-rebuild switch --flake .#wsl` |
+| Host | Machine | Rebuild |
+|------|---------|---------|
+| `homelab` | NAS (24/7) | `sudo nixos-rebuild switch --flake .#homelab` |
 
 ## Services
 
@@ -19,7 +16,7 @@ TLS via Caddy's internal CA (`local_certs`). Import the root cert once per devic
 docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 ```
 
-### NAS (docker/nas/)
+### NAS (modules/docker/nas/)
 
 | Domain | Service |
 |--------|---------|
@@ -31,21 +28,7 @@ docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 | `status.home.local` | Uptime Kuma — monitoring |
 | `ntfy.home.local` | Ntfy — push notifications |
 
-### service-vm (docker/service-vm/)
-
-| Domain | Service |
-|--------|---------|
-| `photos.home.local` | Immich — photo/video management |
-| `docs.home.local` | Paperless-ngx — document management |
-
-### dev-vm (docker/dev-vm/)
-
-| Domain | Service |
-|--------|---------|
-| `git.home.local` | Forgejo — Git server |
-| `code.home.local` | Code Server — VS Code in browser |
-| `portainer.home.local` | Portainer — Docker management |
-| `logs.home.local` | Dozzle — container logs |
+Cockpit is available at `http://homelab:9090`.
 
 ## Storage (NAS)
 
@@ -58,8 +41,6 @@ docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
   syncthing/           ← Syncthing data
   docker/
     nas/               ← NAS container data
-    service-vm/        ← service-vm container data (NFS-mounted in VM)
-    dev-vm/            ← dev-vm container data (NFS-mounted in VM)
 /mnt/parity1/          ← SnapRAID parity (1x 4TB)
 ```
 
@@ -67,67 +48,53 @@ docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 
 ```
 flake.nix
-.sops.yaml                     # sops-nix key configuration
+.sops.yaml                          # sops-nix key configuration
 secrets/
-  nas.yaml                     # encrypted secrets (safe to commit)
-  nas.yaml.example             # plain-text structure reference
-hosts/
-  homelab/                     # NAS
-  service-vm/                  # Immich + Paperless VM
-  dev-vm/                      # Dev tools VM
-  wsl/                         # WSL dev environment
+  nas.yaml                          # encrypted secrets (safe to commit)
+  nas.yaml.example                  # plain-text structure reference
 modules/
-  common.nix                   # shared: locale, user, base packages
-  tailscale.nix                # Tailscale + subnet router
-  secrets.nix                  # sops-nix secret declarations
-  server/
-    storage.nix                # mergerfs mounts + directory structure
-    snapraid.nix               # SnapRAID + systemd timers
-    samba.nix                  # Samba shares
-    nfs.nix                    # NFS exports to VMs
-    docker.nix                 # Docker daemon
-    firewall.nix               # firewall rules
-    monitoring.nix             # smartd SMART monitoring
-    backup.nix                 # restic backups
-    wol.nix                    # Wake-on-LAN (wake-gaming / sleep-gaming)
-docker/
-  nas/
-    docker-compose.yml
-    Caddyfile
-    .env.example               → cp to .env and fill in
-  service-vm/
-    docker-compose.yml
-    .env.example
-  dev-vm/
-    docker-compose.yml
-    .env.example
-home/                          # Home Manager dotfiles (shared)
+  hosts/
+    homelab/                        # NAS host config
+      configuration.nix
+      hardware-configuration.nix
+  nixos/
+    common.nix                      # shared: locale, user, base packages
+    tailscale.nix                   # Tailscale + subnet router
+    secrets.nix                     # sops-nix secret declarations
+    server/
+      storage.nix                   # mergerfs mounts + directory structure
+      snapraid.nix                  # SnapRAID + systemd timers
+      samba.nix                     # Samba shares
+      nfs.nix                       # NFS exports
+      docker.nix                    # Docker daemon
+      firewall.nix                  # firewall rules
+      monitoring.nix                # smartd SMART monitoring
+      backup.nix                    # restic backups
+      wol.nix                       # Wake-on-LAN
+  docker/
+    nas/
+      docker-compose.yml
+      Caddyfile
+      .env.example                  → cp to .env and fill in
+  packages/
+    home/                           # Home Manager dotfiles (zsh, git, neovim, tmux)
 ```
-
-## Docs
-
-- **[docs/setup.md](docs/setup.md)** — full setup guide, phase by phase
-- **[docs/todo.md](docs/todo.md)** — what still needs to be done
 
 ## Common Commands
 
 ```bash
 # Rebuild local host
-sudo nixos-rebuild switch --flake /etc/nixos#HOSTNAME
+sudo nixos-rebuild switch --flake /etc/nixos#homelab
 
 # Update all flake inputs
 nix flake update
-sudo nixos-rebuild switch --flake /etc/nixos#HOSTNAME
+sudo nixos-rebuild switch --flake /etc/nixos#homelab
 
 # Rollback
 sudo nixos-rebuild switch --rollback
 
 # Edit secrets
 sops secrets/nas.yaml
-
-# Wake gaming rig / shut it down
-wake-gaming
-sleep-gaming
 ```
 
 ## sops-nix Setup (run once per machine)
