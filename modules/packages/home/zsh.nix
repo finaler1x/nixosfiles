@@ -18,6 +18,7 @@
       gs = "git status";
       gp = "git push";
       gc = "git commit";
+      rebuild = "sudo nixos-rebuild switch --flake .#homelab";
     };
   };
 }
