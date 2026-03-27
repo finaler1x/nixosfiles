@@ -23,9 +23,7 @@
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         ./modules/hosts/homelab/default.nix
-#        ./modules/hosts/wsl/default.nix
 #        ./modules/hosts/dev-vm/default.nix
-#        ./modules/hosts/service-vm/default.nix
       ];
       systems = [ "x86_64-linux" ];
     };
