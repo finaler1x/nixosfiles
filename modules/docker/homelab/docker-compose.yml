@@ -167,3 +167,6 @@ services:
 networks:
   homelab:
     driver: bridge
+    name: homelab
+    driver_opts:
+      com.docker.network.bridge.name: homelab-br
