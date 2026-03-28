@@ -41,6 +41,22 @@
     enable = true;
     port = 9090;
     openFirewall = true;
+    settings = {
+      WebService = {
+        AllowUnencrypted = lib.mkForce true;
+        Origins = lib.mkForce "http://127.0.0.1:8080 http://127.0.0.1:80 http://127.0.0.1:9090";
+      };
+    };
+  };
+
+  # ── Caddy ──────────────────────────────────────────
+  services.caddy = {
+    enable = true;
+    virtualHosts."http://127.0.0.1:80" = {
+      extraConfig = ''
+        reverse_proxy localhost:9090
+      '';
+    };
   };
 
   nix.gc = {

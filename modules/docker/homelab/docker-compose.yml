@@ -1,22 +1,5 @@
 services:
 
-  # ── Caddy (Reverse Proxy) ─────────────────────────────
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"   # HTTP/3
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - /mnt/storage/docker/homelab/caddy/data:/data
-      - /mnt/storage/docker/homelab/caddy/config:/config
-    env_file: .env
-    networks:
-      - homelab
-
   # ── AdGuard Home (DNS + Ad Blocker) ───────────────────
   adguardhome:
     image: adguard/adguardhome:latest
@@ -27,8 +10,8 @@ services:
       - "53:53/udp"
       # Port 3000 (web UI) not exposed on host — Caddy proxies to it
     volumes:
-      - /mnt/storage/docker/homelab/adguard/work:/opt/adguardhome/work
-      - /mnt/storage/docker/homelab/adguard/conf:/opt/adguardhome/conf
+      - /mnt/storage/docker/nas/adguard/work:/opt/adguardhome/work
+      - /mnt/storage/docker/nas/adguard/conf:/opt/adguardhome/conf
     networks:
       - homelab
     # First run: access http://NAS_IP:3000 to complete setup wizard.
@@ -43,8 +26,8 @@ services:
     restart: unless-stopped
     volumes:
       - /mnt/storage:/srv
-      - /mnt/storage/docker/homelab/filebrowser/database.db:/database.db
-      - /mnt/storage/docker/homelab/filebrowser/settings.json:/.filebrowser.json
+      - /mnt/storage/docker/nas/filebrowser/database.db:/database.db
+      - /mnt/storage/docker/nas/filebrowser/settings.json:/.filebrowser.json
     networks:
       - homelab
 
@@ -73,9 +56,9 @@ services:
     container_name: homarr
     restart: unless-stopped
     volumes:
-      - /mnt/storage/docker/homelab/homarr/configs:/app/data/configs
-      - /mnt/storage/docker/homelab/homarr/icons:/app/public/icons
-      - /mnt/storage/docker/homelab/homarr/data:/data
+      - /mnt/storage/docker/nas/homarr/configs:/app/data/configs
+      - /mnt/storage/docker/nas/homarr/icons:/app/public/icons
+      - /mnt/storage/docker/nas/homarr/data:/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - homelab
@@ -98,7 +81,7 @@ services:
     container_name: vaultwarden
     restart: unless-stopped
     volumes:
-      - /mnt/storage/docker/homelab/vaultwarden:/data
+      - /mnt/storage/docker/nas/vaultwarden:/data
       - /run/secrets/vaultwarden/admin_token:/run/secrets/admin_token:ro
     environment:
       - DOMAIN=https://vault.home.local
@@ -113,10 +96,11 @@ services:
     container_name: uptime-kuma
     restart: unless-stopped
     volumes:
-      - /mnt/storage/docker/homelab/uptime-kuma:/app/data
+      - /mnt/storage/docker/nas/uptime-kuma:/app/data
     networks:
       - homelab
     # Configure monitors in the web UI.
+    # For VM services: add maintenance windows for when gaming rig is off.
     # Connect Ntfy as notification provider.
 
   # ── Portainer (Docker Management UI) ─────────────────
@@ -126,15 +110,19 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/storage/docker/homelab/portainer:/data
+      - /mnt/storage/docker/nas/portainer:/data
     networks:
       - homelab
+    # Add service-vm and dev-vm as environments via UI → Environments → Add → Agent
+    # Point to SERVICE_VM_IP:9001 and DEV_VM_IP:9001
 
   # ── Dozzle (Container Logs) ───────────────────────────
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
     restart: unless-stopped
+    environment:
+      - DOZZLE_REMOTE_HOST=agent://${SERVICE_VM_IP}:7007|service-vm,agent://${DEV_VM_IP}:7007|dev-vm
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -149,7 +137,7 @@ services:
     ports:
       - "127.0.0.1:8082:80"   # localhost only — NixOS services (smartd) send alerts here
     volumes:
-      - /mnt/storage/docker/homelab/ntfy:/var/lib/ntfy
+      - /mnt/storage/docker/nas/ntfy:/var/lib/ntfy
     environment:
       - NTFY_BASE_URL=https://ntfy.home.local
       - NTFY_BEHIND_PROXY=true
@@ -159,122 +147,7 @@ services:
     # SMART alerts use topic: homelab-alerts
     # Uptime Kuma alerts: configure in Uptime Kuma UI → Notifications → Ntfy
 
-  # ── Shared Infrastructure ─────────────────────────────
-  # Redis: shared between Immich and Paperless
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    networks:
-      - homelab
-
-  # ── Immich ────────────────────────────────────────────
-  # Requires pgvecto-rs PostgreSQL extension
-  immich-postgres:
-    image: tensorchord/pgvecto-rs:pg16-v0.2.0
-    container_name: immich-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: immich
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_INITDB_ARGS: "--data-checksums"
-    volumes:
-      - immich_db:/var/lib/postgresql/data
-    networks:
-      - homelab
-    healthcheck:
-      test: pg_isready --dbname='immich' --username='${DB_USER}' || exit 1
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  immich-server:
-    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
-    container_name: immich-server
-    restart: unless-stopped
-    depends_on:
-      immich-postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - /mnt/storage/media/photos:/usr/src/app/upload
-    environment:
-      DB_HOSTNAME: immich-postgres
-      DB_DATABASE_NAME: immich
-      DB_USERNAME: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      REDIS_HOSTNAME: redis
-    env_file: .env
-    networks:
-      - homelab
-
-  immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
-    container_name: immich-machine-learning
-    restart: unless-stopped
-    volumes:
-      - immich_ml_cache:/cache
-    networks:
-      - homelab
-
-  # ── Paperless-ngx ─────────────────────────────────────
-  paperless-postgres:
-    image: postgres:16-alpine
-    container_name: paperless-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: paperless
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - paperless_db:/var/lib/postgresql/data
-    networks:
-      - homelab
-    healthcheck:
-      test: pg_isready --dbname=paperless --username='${DB_USER}' || exit 1
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  paperless:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
-    container_name: paperless
-    restart: unless-stopped
-    depends_on:
-      paperless-postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - /mnt/storage/documents/paperless:/usr/src/paperless/media
-      - /mnt/storage/documents/paperless-consume:/usr/src/paperless/consume
-      - paperless_data:/usr/src/paperless/data
-    environment:
-      PAPERLESS_REDIS: redis://redis:6379
-      PAPERLESS_DBHOST: paperless-postgres
-      PAPERLESS_DBNAME: paperless
-      PAPERLESS_DBUSER: ${DB_USER}
-      PAPERLESS_DBPASS: ${DB_PASSWORD}
-      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
-      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER}
-      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD}
-      PAPERLESS_TIME_ZONE: ${TZ}
-      PAPERLESS_OCR_LANGUAGE: deu+eng
-    networks:
-      - homelab
 
 networks:
   homelab:
     driver: bridge
-
-volumes:
-  redis_data:
-  # DB and ML cache stay on local disk (too write-heavy for spinning drives)
-  immich_db:
-  immich_ml_cache:
-  paperless_db:
-  paperless_data:
