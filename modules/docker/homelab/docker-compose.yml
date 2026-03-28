@@ -82,11 +82,10 @@ services:
     restart: unless-stopped
     volumes:
       - /mnt/storage/docker/nas/vaultwarden:/data
-      - /run/secrets/vaultwarden/admin_token:/run/secrets/admin_token:ro
     environment:
-      - DOMAIN=https://vault.home.local
+      - DOMAIN=https://vault.homelab
       - SIGNUPS_ALLOWED=false   # set to true only during initial account creation
-      - ADMIN_TOKEN_FILE=/run/secrets/admin_token
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
     networks:
       - homelab
 
