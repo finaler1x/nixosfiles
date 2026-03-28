@@ -13,7 +13,7 @@
 # ── Core services ──────────────────────────────────────────
 
 adguard.homelab {
-  reverse_proxy adguardhome:3000
+  reverse_proxy adguardhome:80
 }
 
 files.homelab {
