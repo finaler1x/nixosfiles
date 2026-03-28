@@ -5,6 +5,7 @@
     enable = true;
     openFirewall = true;              # opens UDP 41641 automatically
     useRoutingFeatures = "server";    # enables IP forwarding for subnet routing
+    extraUpFlags = [ "--ssh" ];       # enables Tailscale SSH
 
     # Uncomment to auto-authenticate on first boot using a sops-managed auth key.
     # Generate a reusable key at tailscale.com/admin/settings/keys
