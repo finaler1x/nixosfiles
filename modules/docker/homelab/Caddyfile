@@ -1,6 +1,6 @@
 # ── Global ────────────────────────────────────────────────
 {
-  # Use Caddy's internal CA for all sites (no Let's Encrypt needed for .home.local)
+  # Use Caddy's internal CA for all sites (no Let's Encrypt needed for .homelab)
   # To trust the CA on your devices, import the root cert from:
   #   docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
   local_certs
@@ -12,48 +12,52 @@
 
 # ── Core services ──────────────────────────────────────────
 
-adguard.home.local {
+adguard.homelab {
   reverse_proxy adguardhome:3000
 }
 
-files.home.local {
+files.homelab {
   reverse_proxy filebrowser:80
 }
 
-sync.home.local {
+sync.homelab {
   reverse_proxy syncthing:8384
 }
 
-dash.home.local {
+dash.homelab {
   reverse_proxy homarr:7575
 }
 
-vault.home.local {
+vault.homelab {
   reverse_proxy vaultwarden:80
 }
 
-status.home.local {
+status.homelab {
   reverse_proxy uptime-kuma:3001
 }
 
-ntfy.home.local {
+ntfy.homelab {
   reverse_proxy ntfy:80
 }
 
-portainer.home.local {
+portainer.homelab {
   reverse_proxy portainer:9000
 }
 
-logs.home.local {
+logs.homelab {
   reverse_proxy dozzle:8080
+}
+
+cockpit.homelab {
+  reverse_proxy host.docker.internal:9090
 }
 
 # ── Immich + Paperless ────────────────────────────────────
 
-photos.home.local {
+photos.homelab {
   reverse_proxy immich-server:2283
 }
 
-docs.home.local {
+docs.homelab {
   reverse_proxy paperless:8000
 }

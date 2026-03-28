@@ -40,22 +40,12 @@
   services.cockpit = {
     enable = true;
     port = 9090;
-    openFirewall = true;
+    openFirewall = false;
     settings = {
       WebService = {
         AllowUnencrypted = lib.mkForce true;
-        Origins = lib.mkForce "http://127.0.0.1:8080 http://127.0.0.1:80 http://127.0.0.1:9090";
+        Origins = lib.mkForce "https://cockpit.homelab";
       };
-    };
-  };
-
-  # ── Caddy ──────────────────────────────────────────
-  services.caddy = {
-    enable = true;
-    virtualHosts."http://127.0.0.1:80" = {
-      extraConfig = ''
-        reverse_proxy localhost:9090
-      '';
     };
   };
 

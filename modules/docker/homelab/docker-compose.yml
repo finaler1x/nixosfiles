@@ -128,6 +128,23 @@ services:
     networks:
       - homelab
 
+  # ── Caddy (Reverse Proxy) ─────────────────────────────
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /mnt/storage/docker/nas/caddy/data:/data
+      - /mnt/storage/docker/nas/caddy/config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reach host services (Cockpit)
+    networks:
+      - homelab
+
   # ── Ntfy (Push Notifications) ─────────────────────────
   ntfy:
     image: binwiederhier/ntfy:latest
