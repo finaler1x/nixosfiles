@@ -45,6 +45,7 @@
       WebService = {
         AllowUnencrypted = lib.mkForce true;
         Origins = lib.mkForce "https://cockpit.homelab";
+        ListenAddress = "172.17.0.1";
       };
     };
   };

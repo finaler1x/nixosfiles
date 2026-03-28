@@ -18,6 +18,7 @@
       gp = "git push";
       gc = "git commit";
       rebuild = "sudo nixos-rebuild switch --flake .#homelab";
+      dchl = "docker compose -f ~/Projects/nixosfiles/modules/docker/homelab/docker-compose.yml";
     };
   };
 }
