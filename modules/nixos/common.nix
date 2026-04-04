@@ -47,7 +47,10 @@
   users.users.antonio.shell = pkgs.zsh;
 
   # ── SSH ───────────────────────────────────────────────
-  services.openssh.enable = true;
+  services.openssh = {
+    enable = true;
+    settings.AcceptEnv = "TERM";
+  };
 
   # ── Firewall ──────────────────────────────────────────
   networking.firewall.enable = true;
