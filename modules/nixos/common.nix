@@ -49,7 +49,7 @@
   # ── SSH ───────────────────────────────────────────────
   services.openssh = {
     enable = true;
-    settings.AcceptEnv = "TERM";
+    settings.AcceptEnv = [ "TERM" ];
   };
 
   # ── Firewall ──────────────────────────────────────────
