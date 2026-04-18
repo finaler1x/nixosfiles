@@ -27,6 +27,7 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "homelab";
+  networking.hosts."100.99.212.33" = [ "adguard.homelab" ];
 
   services.openssh = {
     enable = true;
