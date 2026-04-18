@@ -1,8 +1,10 @@
 { config, pkgs, ... }:
 
 {
-  # Firmware for wireless cards (e.g. Intel iwlwifi)
   hardware.enableRedistributableFirmware = true;
+
+  # AC 3160 times out during INIT calibrations without this
+  boot.extraModprobeConfig = "options iwlwifi 11n_disable=1 power_save=0";
 
   # Switch away from NetworkManager to networkd + wpa_supplicant
   networking.networkmanager.enable = false;
