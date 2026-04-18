@@ -1,6 +1,9 @@
 { config, pkgs, ... }:
 
 {
+  # Firmware for wireless cards (e.g. Intel iwlwifi)
+  hardware.enableRedistributableFirmware = true;
+
   # Switch away from NetworkManager to networkd + wpa_supplicant
   networking.networkmanager.enable = false;
   networking.useNetworkd = true;
