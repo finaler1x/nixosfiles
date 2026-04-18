@@ -16,6 +16,7 @@
     ../../nixos/server/docker.nix
     # ── Network ──────────────────────────────────────────
     ../../nixos/server/firewall.nix
+    ../../nixos/server/network.nix
     # ── Maintenance ──────────────────────────────────────
 #    ../../nixos/server/monitoring.nix
 #    ../../nixos/server/backup.nix
@@ -26,7 +27,6 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   networking.hostName = "homelab";
-  networking.networkmanager.enable = true;
 
   services.openssh = {
     enable = true;
