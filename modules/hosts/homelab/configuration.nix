@@ -27,10 +27,13 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.devNodes = "/dev/disk/by-id";
+  boot.zfs.extraPools = [ "storage" ];
 
   networking.hostName = "homelab";
   networking.hostId = "1f7c5688";
   networking.hosts."100.99.212.33" = [ "adguard.homelab" ];
+
+  services.zfs.autoScrub.enable = true;
 
   services.openssh = {
     enable = true;
