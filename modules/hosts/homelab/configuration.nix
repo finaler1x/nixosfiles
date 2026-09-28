@@ -10,7 +10,7 @@
 #    ../../nixos/server/storage.nix
 #    ../../nixos/server/snapraid.nix
     # ── Network shares ───────────────────────────────────
-#    ../../nixos/server/samba.nix
+    ../../nixos/server/samba.nix
 #    ../../nixos/server/nfs.nix
     # ── Docker ───────────────────────────────────────────
     ../../nixos/server/docker.nix
