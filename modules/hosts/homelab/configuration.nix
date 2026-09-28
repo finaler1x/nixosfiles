@@ -25,8 +25,11 @@
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.supportedFilesystems = [ "zfs" ];
+  boot.zfs.devNodes = "/dev/disk/by-id";
 
   networking.hostName = "homelab";
+  networking.hostId = "1f7c5688";
   networking.hosts."100.99.212.33" = [ "adguard.homelab" ];
 
   services.openssh = {
