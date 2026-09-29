@@ -55,7 +55,7 @@ cockpit.homelab {
 # ── Immich + Paperless ────────────────────────────────────
 
 photos.homelab {
-  reverse_proxy immich-server:2283
+  reverse_proxy host.docker.internal:2283
 }
 
 docs.homelab {

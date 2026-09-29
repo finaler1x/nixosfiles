@@ -9,6 +9,7 @@
     # ── Storage ──────────────────────────────────────────
 #    ../../nixos/server/storage.nix
     ../../nixos/server/storage-health.nix
+    ../../nixos/server/immich.nix
 #    ../../nixos/server/snapraid.nix
     # ── Network shares ───────────────────────────────────
     ../../nixos/server/samba.nix
