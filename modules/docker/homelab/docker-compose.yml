@@ -6,8 +6,8 @@ services:
     container_name: adguardhome
     restart: unless-stopped
     ports:
-      - "53:53/tcp"
-      - "53:53/udp"
+      - "192.168.178.75:53:53/tcp"
+      - "192.168.178.75:53:53/udp"
       # Port 3000 (web UI) not exposed on host — Caddy proxies to it
     volumes:
       - /mnt/storage/docker/nas/adguard/work:/opt/adguardhome/work
