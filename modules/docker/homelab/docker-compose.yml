@@ -140,7 +140,7 @@ services:
       - /mnt/storage/docker/nas/caddy/data:/data
       - /mnt/storage/docker/nas/caddy/config:/config
     extra_hosts:
-      - "host.docker.internal:host-gateway"  # reach host services (Cockpit)
+      - "host.docker.internal:172.18.0.1"  # reach native host services
     networks:
       - homelab
 
@@ -170,3 +170,7 @@ networks:
     name: homelab
     driver_opts:
       com.docker.network.bridge.name: homelab-br
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
