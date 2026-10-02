@@ -8,6 +8,8 @@ services:
     ports:
       - "192.168.178.75:53:53/tcp"
       - "192.168.178.75:53:53/udp"
+      - "100.99.212.33:53:53/tcp"
+      - "100.99.212.33:53:53/udp"
       # Port 3000 (web UI) not exposed on host — Caddy proxies to it
     volumes:
       - /mnt/storage/docker/nas/adguard/work:/opt/adguardhome/work
