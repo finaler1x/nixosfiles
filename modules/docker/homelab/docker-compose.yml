@@ -74,6 +74,8 @@ services:
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_SCHEDULE=0 0 4 * * *   # daily at 04:00
       - TZ=${TZ}
+    networks:
+      - homelab
 
   # ── Vaultwarden (Password Manager) ────────────────────
   vaultwarden:
