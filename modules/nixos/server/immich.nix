@@ -1,8 +1,12 @@
-{ ... }:
+{ inputs, pkgs, ... }:
 
+let
+  immichPkgs = inputs.immich-nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system};
+in
 {
   services.immich = {
     enable = true;
+    package = immichPkgs.immich;
 
     # Listen for direct LAN/Tailscale access and the Dockerized Caddy proxy.
     host = "0.0.0.0";

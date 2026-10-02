@@ -30,6 +30,7 @@
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.devNodes = "/dev/disk/by-id";
   boot.zfs.extraPools = [ "storage" ];
+  boot.zfs.forceImportRoot = false;
 
   networking.hostName = "homelab";
   networking.hostId = "1f7c5688";
