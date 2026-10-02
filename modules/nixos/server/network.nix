@@ -11,9 +11,12 @@
   systemd.network = {
     enable = true;
     networks."10-wired" = {
-      matchConfig.Type = "ether";
+      matchConfig.Name = "enp0s31f6";
+
       networkConfig.DHCP = "yes";
-      dhcpV4Config.RouteMetric = 100; # prefer wired
+      dhcpV4Config.RouteMetric = 100;
+
+      linkConfig.RequiredForOnline = "routable";
     };
     networks."20-wireless" = {
       matchConfig.Type = "wlan";
