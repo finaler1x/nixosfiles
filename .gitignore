@@ -4,6 +4,10 @@ result
 
 # Docker secrets — never commit actual .env files
 docker/**/.env
+modules/docker/**/.env
+
+# Locally exported Caddy CA certificate (not deployment source)
+modules/docker/**/caddy-root.crt
 
 # sops age private key — NEVER commit this
 keys.txt

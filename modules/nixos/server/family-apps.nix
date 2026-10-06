@@ -1,89 +1,47 @@
-{ config, lib, ... }:
+{ pkgs, ... }:
 
 let
-  # Trust forwarding headers only on sockets accessible to nginx and the
-  # rootful Caddy container. No TCP listener bypasses the HTTPS entry point.
-  socketProxyConfig = ''
-    set_real_ip_from unix:;
-    real_ip_header X-Forwarded-For;
-    real_ip_recursive on;
-  '';
-
-  storageGuard = mountpoint: {
-    after = [ "zfs-mount.service" ];
-    unitConfig = {
-      RequiresMountsFor = mountpoint;
-      AssertPathIsMountPoint = mountpoint;
-    };
+  prepare = pkgs.writeShellApplication {
+    name = "prepare-family-apps";
+    runtimeInputs = [ pkgs.python3 pkgs.util-linux ];
+    text = ''exec python3 ${../../../scripts/prepare-family-apps.py} "$@"'';
+  };
+  backup = pkgs.writeShellApplication {
+    name = "backup-family-apps";
+    runtimeInputs = [ pkgs.python3 pkgs.util-linux pkgs.docker pkgs.zfs ];
+    text = ''exec python3 ${../../../scripts/backup-family-apps.py} "$@"'';
   };
 in
 {
-  imports = [
-    ./nextcloud.nix
-    ./paperless.nix
-  ];
+  # Applications, databases and brokers are managed by Compose/Portainer.
+  # The host only supplies storage protection and a coordinated local backup.
+  environment.systemPackages = [ prepare backup ];
 
-  services.nginx.virtualHosts = {
-    "cloud.homelab" = {
-      listen = [ { addr = "unix:/run/family-web/nextcloud.sock"; } ];
-      extraConfig = socketProxyConfig;
-    };
-    "docs.homelab" = {
-      listen = [ { addr = "unix:/run/family-web/paperless.sock"; } ];
-      extraConfig = socketProxyConfig + ''
-        client_max_body_size 100m;
-      '';
-      locations."/" = {
-        proxyPass = "http://127.0.0.1:${toString config.services.paperless.port}";
-        proxyWebsockets = true;
-        # Do not also emit the recommended X-Forwarded-Proto $scheme (http).
-        recommendedProxySettings = false;
-        extraConfig = ''
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $remote_addr;
-          proxy_set_header X-Forwarded-Proto https;
-          proxy_read_timeout 300s;
-        '';
-      };
+  # Docker restores unless-stopped containers at boot, outside Compose's
+  # startup checks. Never start it against an unmounted application dataset.
+  # Deliberately fail closed for the whole daemon if either dataset is missing.
+  systemd.services.docker = {
+    after = [ "zfs-mount.service" ];
+    unitConfig = {
+      RequiresMountsFor = [ "/storage/apps/nextcloud" "/storage/apps/paperless" ];
+      AssertPathIsMountPoint = [ "/storage/apps/nextcloud" "/storage/apps/paperless" ];
     };
   };
 
-  # Mount the directory into Caddy, not individual sockets. Keep its inode
-  # across nginx restarts; RuntimeDirectory would remove it when nginx stops.
-  systemd.tmpfiles.rules = [ "d /run/family-web 0700 nginx nginx - -" ];
-
-  # Fail closed instead of putting application data on the root filesystem
-  # when an expected ZFS dataset is not mounted. No existing data is imported.
-  systemd.services = lib.mkMerge [
-    (lib.genAttrs [
-      "nextcloud-setup"
-      "nextcloud-update-db"
-      "nextcloud-cron"
-      "phpfpm-nextcloud"
-    ] (_: storageGuard "/storage/apps/nextcloud"))
-    (lib.genAttrs [
-      "paperless-scheduler"
-      "paperless-consumer"
-      "paperless-task-queue"
-      "paperless-web"
-      "paperless-exporter"
-    ] (_: storageGuard "/storage/apps/paperless"))
-    {
-      phpfpm-nextcloud.requires = [ "nextcloud-setup.service" ];
-      nginx.serviceConfig.ReadWritePaths = [ "/run/family-web" ];
-      docker = {
-        requires = [ "systemd-tmpfiles-setup.service" ];
-        after = [ "systemd-tmpfiles-setup.service" ];
-      };
-    }
-  ];
-
-  # Logical DB copies complement file snapshots, but are NOT a coordinated
-  # application backup or an off-pool backup. See the deployment guide.
-  services.postgresqlBackup = {
-    enable = true;
-    databases = [ "nextcloud" "paperless" ];
-    startAt = "*-*-* 03:30:00";
+  systemd.services.family-apps-backup = {
+    description = "Quiesce family containers, dump databases and snapshot datasets";
+    requires = [ "docker.service" ];
+    after = [ "docker.service" ];
+    startAt = "*-*-* 02:30:00";
+    unitConfig.ConditionPathExists = [
+      "/storage/apps/nextcloud/.compose-layout-v1"
+      "/storage/apps/paperless/.compose-layout-v1"
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      UMask = "0077";
+      TimeoutStartSec = "30min";
+      ExecStart = "${backup}/bin/backup-family-apps";
+    };
   };
 }

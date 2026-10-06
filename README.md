@@ -28,8 +28,8 @@ docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 | `status.homelab` | Uptime Kuma — monitoring |
 | `ntfy.homelab` | Ntfy — push notifications |
 | `photos.homelab` | Immich — photo/video management |
-| `cloud.homelab` | Nextcloud — native NixOS family files and Team folders |
-| `docs.homelab` | Paperless-ngx — native NixOS document management |
+| `cloud.homelab` | Nextcloud — Compose family files and Team folders |
+| `docs.homelab` | Paperless-ngx — Compose document management |
 | `portainer.homelab` | Portainer — Docker management |
 | `logs.homelab` | Dozzle — container logs |
 
@@ -38,7 +38,13 @@ Cockpit is available at `https://cockpit.homelab` through the same proxy.
 Nextcloud and Paperless setup, four-person permissions, Tailscale/CA requirements,
 verification and backup limitations: [Family applications](docs/family-apps.md).
 They use `/storage/apps/nextcloud` and `/storage/apps/paperless`, not the legacy
-`/mnt/storage` layout below. Their PostgreSQL databases live in the host cluster.
+`/mnt/storage` layout below. Each has its own PostgreSQL/Redis containers; Immich
+continues to use the native host services. Versions are pinned and excluded from
+Watchtower. NixOS supplies storage guards and coordinated local backups.
+
+Immich remains native by default. The [prepared Docker cutover](modules/docker/immich/README.md)
+uses a fresh final copy and an explicit native/Docker selector; it does not
+activate the production container or reuse the isolated trial automatically.
 
 ## Legacy storage layout (inactive mergerfs configuration)
 

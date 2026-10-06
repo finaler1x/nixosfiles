@@ -1,3 +1,34 @@
+x-family-service: &family-service
+  restart: unless-stopped
+  labels:
+    com.centurylinklabs.watchtower.enable: "false"
+
+x-nextcloud-image: &nextcloud-image nextcloud:33.0.9-apache@sha256:6df481c0861b87366086df72a63a8f041e3680c715edb12f8444902223b51c09
+x-postgres-image: &postgres-image postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
+x-redis-image: &redis-image redis:8.2.10-alpine3.22@sha256:b51665e66f00759be7c3152ad5ac3c66fb2f619c13ef62dea7cc1f9914524635
+
+x-nextcloud-environment: &nextcloud-environment
+  POSTGRES_HOST: nextcloud-db
+  POSTGRES_DB: nextcloud
+  POSTGRES_USER: nextcloud
+  POSTGRES_PASSWORD_FILE: /run/secrets/nextcloud_db
+  REDIS_HOST: nextcloud-redis
+  NEXTCLOUD_TRUSTED_DOMAINS: cloud.homelab
+  TRUSTED_PROXIES: 172.30.50.2
+  APACHE_DISABLE_REWRITE_IP: "1"
+  OVERWRITEHOST: cloud.homelab
+  OVERWRITEPROTOCOL: https
+  OVERWRITECLIURL: https://cloud.homelab
+  PHP_MEMORY_LIMIT: 512M
+  PHP_UPLOAD_LIMIT: 512M
+
+x-nextcloud-volumes: &nextcloud-volumes
+  - type: bind
+    source: /storage/apps/nextcloud/html
+    target: /var/www/html
+    bind:
+      create_host_path: false
+
 services:
 
   # ── AdGuard Home (DNS + Ad Blocker) ───────────────────
@@ -129,20 +160,14 @@ services:
       - "${TAILSCALE_IP}:443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Native family apps: no additional host TCP ports. NixOS creates this
-      # directory; fail instead of silently creating a root-owned substitute.
-      - type: bind
-        source: /run/family-web
-        target: /run/family-web
-        read_only: true
-        bind:
-          create_host_path: false
       - /mnt/storage/docker/nas/caddy/data:/data
       - /mnt/storage/docker/nas/caddy/config:/config
     extra_hosts:
       - "host.docker.internal:172.18.0.1"  # reach native host services
     networks:
-      - homelab
+      homelab: {}
+      family-proxy:
+        ipv4_address: 172.30.50.2
 
   # ── Ntfy (Push Notifications) ─────────────────────────
   ntfy:
@@ -163,8 +188,209 @@ services:
     # SMART alerts use topic: homelab-alerts
     # Uptime Kuma alerts: configure in Uptime Kuma UI → Notifications → Ntfy
 
+  # ── Family applications (managed upgrades, no public ports) ──
+  nextcloud-db:
+    <<: *family-service
+    image: *postgres-image
+    container_name: nextcloud-db
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD_FILE: /run/secrets/nextcloud_db
+    secrets: [nextcloud_db]
+    volumes:
+      - type: bind
+        source: /storage/apps/nextcloud/postgres
+        # PostgreSQL 18 stores its versioned PGDATA below this directory.
+        target: /var/lib/postgresql
+        bind: {create_host_path: false}
+    networks: [nextcloud-backend]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, nextcloud, -d, nextcloud]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  nextcloud-redis:
+    <<: *family-service
+    image: *redis-image
+    container_name: nextcloud-redis
+    command: [redis-server, --appendonly, "yes"]
+    volumes:
+      - type: bind
+        source: /storage/apps/nextcloud/redis
+        target: /data
+        bind: {create_host_path: false}
+    networks: [nextcloud-backend]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  nextcloud:
+    <<: *family-service
+    image: *nextcloud-image
+    container_name: nextcloud
+    environment:
+      <<: *nextcloud-environment
+      # Explicit bootstrap credentials enable the image's automatic installer.
+      NEXTCLOUD_ADMIN_USER: nc-admin
+      NEXTCLOUD_ADMIN_PASSWORD_FILE: /run/secrets/nextcloud_admin
+    secrets: [nextcloud_db, nextcloud_admin]
+    volumes: *nextcloud-volumes
+    networks: [family-proxy, nextcloud-backend]
+    depends_on:
+      nextcloud-db: {condition: service_healthy}
+      nextcloud-redis: {condition: service_healthy}
+    stop_grace_period: 5m
+    healthcheck:
+      test:
+        - CMD
+        - php
+        - -r
+        - >-
+          $$context = stream_context_create(["http" => ["header" => "Host: cloud.homelab\r\n", "timeout" => 5]]);
+          $$status = json_decode(@file_get_contents("http://127.0.0.1/status.php", false, $$context), true);
+          exit(is_array($$status) && ($$status["installed"] ?? false) && !($$status["maintenance"] ?? true) && !($$status["needsDbUpgrade"] ?? true) ? 0 : 1);
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 5m
+
+  nextcloud-cron:
+    <<: *family-service
+    image: *nextcloud-image
+    container_name: nextcloud-cron
+    entrypoint: /cron.sh
+    environment: *nextcloud-environment
+    secrets: [nextcloud_db]
+    volumes: *nextcloud-volumes
+    networks: [family-proxy, nextcloud-backend]
+    depends_on:
+      nextcloud: {condition: service_healthy}
+    stop_grace_period: 5m
+
+  paperless-db:
+    <<: *family-service
+    image: *postgres-image
+    container_name: paperless-db
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD_FILE: /run/secrets/paperless_db
+    secrets: [paperless_db]
+    volumes:
+      - type: bind
+        source: /storage/apps/paperless/postgres
+        target: /var/lib/postgresql
+        bind: {create_host_path: false}
+    networks: [paperless-backend]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, paperless, -d, paperless]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  paperless-redis:
+    <<: *family-service
+    image: *redis-image
+    container_name: paperless-redis
+    command: [redis-server, --appendonly, "yes"]
+    volumes:
+      - type: bind
+        source: /storage/apps/paperless/redis
+        target: /data
+        bind: {create_host_path: false}
+    networks: [paperless-backend]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  paperless:
+    <<: *family-service
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0@sha256:6b94799bc769a063b3340cc5847402e626d4d91d29a295a8e747f8e9bead4207
+    container_name: paperless
+    environment:
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS_FILE: /run/secrets/paperless_db
+      PAPERLESS_SECRET_KEY_FILE: /run/secrets/paperless_key
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_ADMIN_USER: paperless-admin
+      PAPERLESS_ADMIN_PASSWORD_FILE: /run/secrets/paperless_admin
+      PAPERLESS_URL: https://docs.homelab
+      PAPERLESS_ALLOWED_HOSTS: docs.homelab
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_TRUSTED_PROXIES: 172.30.50.2
+      PAPERLESS_TIME_ZONE: Europe/Berlin
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_TASK_WORKERS: "1"
+      PAPERLESS_THREADS_PER_WORKER: "2"
+      USERMAP_UID: "1000"
+      USERMAP_GID: "1000"
+    secrets: [paperless_db, paperless_key, paperless_admin]
+    volumes:
+      - type: bind
+        source: /storage/apps/paperless/data
+        target: /usr/src/paperless/data
+        bind: {create_host_path: false}
+      - type: bind
+        source: /storage/apps/paperless/media
+        target: /usr/src/paperless/media
+        bind: {create_host_path: false}
+      - type: bind
+        source: /storage/apps/paperless/consume
+        target: /usr/src/paperless/consume
+        bind: {create_host_path: false}
+      - type: bind
+        source: /storage/apps/paperless/export
+        target: /usr/src/paperless/export
+        bind: {create_host_path: false}
+    networks: [family-proxy, paperless-backend]
+    depends_on:
+      paperless-db: {condition: service_healthy}
+      paperless-redis: {condition: service_healthy}
+    stop_grace_period: 5m
+    healthcheck:
+      test: [CMD, curl, -fsSL, --max-time, "5", http://localhost:8000]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 5m
+
+# Files exist only on the Docker host, outside the repository and Nix store.
+# prepare-family-apps creates them once, never rotates existing credentials.
+secrets:
+  nextcloud_db:
+    file: /var/lib/homelab-app-credentials/nextcloud_db
+  nextcloud_admin:
+    file: /var/lib/homelab-app-credentials/nextcloud_admin
+  paperless_db:
+    file: /var/lib/homelab-app-credentials/paperless_db
+  paperless_key:
+    file: /var/lib/homelab-app-credentials/paperless_key
+  paperless_admin:
+    file: /var/lib/homelab-app-credentials/paperless_admin
 
 networks:
+  family-proxy:
+    name: homelab-family-proxy
+    ipam:
+      config:
+        - subnet: 172.30.50.0/28
+          # Keep dynamic app addresses away from Caddy's fixed .2 address.
+          ip_range: 172.30.50.8/29
+  nextcloud-backend:
+    internal: true
+  paperless-backend:
+    internal: true
   homelab:
     driver: bridge
     name: homelab

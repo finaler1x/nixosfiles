@@ -1,228 +1,234 @@
-# Family files and documents
+# Family applications: Compose, with NixOS as the host
 
-## Service boundaries
+## Ownership and versions
 
-- **Nextcloud:** `https://cloud.homelab`, four ordinary personal accounts and a
-  shared Team Folder. Native NixOS, PostgreSQL and Redis, with Team folders
-  installed declaratively. No Office server, SMTP or public federation setup.
-- **Paperless-ngx:** `https://docs.homelab`, private documents plus explicit
-  family sharing. Native NixOS, PostgreSQL, Redis and German/English OCR. Start
-  with authenticated browser uploads; no shared scanner or email intake yet.
-- **Immich:** unchanged. Do not enable a second automatic photo upload in
-  Nextcloud unless you deliberately want duplicate copies.
-- **Filebrowser:** removed from configuration. Its old database and all NAS
-  files are preserved. A previously running container must be stopped separately.
+`modules/docker/homelab/docker-compose.yml` is the source of truth. Use Portainer
+for status, logs and controlled restarts. A stack deployed with host Compose is
+external to Portainer; do not create a second stack or edit images independently
+in its UI. Portainer Git-stack deployment would additionally require making its
+file-backed credentials/config paths available to the stack runner; that is not
+configured here. The supported deployment path below is host Compose.
 
-The current lock selects Nextcloud 33.0.0, Team folders 21.0.6 and Paperless
-2.20.11. Do not apply instructions for Paperless 3.x blindly. Review supported
-patch releases/security advisories before production use; changing the main
-nixpkgs input affects the entire host. Nextcloud major upgrades must be sequential.
-Watchtower does not manage these native applications.
+| Service | Pinned image version | Persistent location | URL |
+| --- | --- | --- | --- |
+| Nextcloud + cron | 33.0.9-apache | `/storage/apps/nextcloud/html` | `https://cloud.homelab` |
+| Paperless-ngx | 3.3.0 | `/storage/apps/paperless/{data,media,consume,export}` | `https://docs.homelab` |
+| PostgreSQL, one per app | 18.4 | each app's `postgres` directory | no published port |
+| Redis, one per app | 8.2.10-alpine3.22 | each app's `redis` directory | no published port |
 
-## Storage and network prerequisites
+All seven containers have immutable image digests and are excluded from
+Watchtower. Updating requires reviewing and changing both the tag and digest.
+No image is pulled by a NixOS rebuild. Immich remains native at its existing pin;
+Vaultwarden, other services, flake inputs and `stateVersion` are unchanged.
+The new databases are separate containers: never restore them over Immich's
+host PostgreSQL cluster. PostgreSQL 18 mounts `/var/lib/postgresql`, not the old
+`/var/lib/postgresql/data` layout.
 
-The existing ZFS datasets must be mounted at these exact paths:
+## Fresh installation only
 
-| Dataset | Mountpoint | Contents |
-| --- | --- | --- |
-| `storage/apps/nextcloud` | `/storage/apps/nextcloud` | config, user files, application state |
-| `storage/apps/paperless` | `/storage/apps/paperless` | media, index, private consume directory, application key, export |
+Paperless is a fresh 3.3 installation, not a 2.x migration. Nextcloud must also
+be fresh for this procedure. If either native application has been activated
+with real data, stop and plan a separate export/restore migration first.
 
-Check on homelab before rebuilding:
+The preparation utility verifies BOTH mounted datasets before creating anything:
+
+- `storage/apps/nextcloud` at `/storage/apps/nextcloud`
+- `storage/apps/paperless` at `/storage/apps/paperless`
+
+It refuses nonempty, unmarked datasets, so an old native config/database/media
+directory is not silently reused. It does not delete/import data, touch
+`/storage/restore`, rotate existing credentials, or recursively chown directories.
+Containers receive only their own subdirectories; never mount the entire
+Nextcloud dataset at `/var/www/html` (image initialization uses `rsync --delete`).
+
+Before a host rebuild, check for accidentally initialized native data:
 
 ```sh
 zfs list -o name,mountpoint,mounted storage/apps/nextcloud storage/apps/paperless
-findmnt --mountpoint /storage/apps/nextcloud
-findmnt --mountpoint /storage/apps/paperless
+sudo find /storage/apps/nextcloud /storage/apps/paperless -mindepth 1 -maxdepth 1
 ```
 
-Both datasets must be mounted (`yes`) and initially empty of unrelated data.
-Do not recursively chown or import `/storage/restore`. The application service
-units fail if their dataset mountpoint is absent. NixOS tmpfiles may create empty
-directories/configuration links before a missing mount is repaired; do not
-manually start application tools against such an unmounted path.
+For a new installation these should be empty. Existing native state is not
+deleted by this change, including any databases remaining in host PostgreSQL.
 
-The databases live in the existing host PostgreSQL cluster, **not** these ZFS
-datasets. Immich's cluster location and version are unchanged.
+## Validation (including Docker-only development machines)
 
-Caddy remains the only remote entry point, using its existing Tailscale-bound
-80/443 publications and internal CA. nginx listens on two UNIX sockets; Paperless
-itself listens only on loopback. No new LAN/Tailscale TCP ports are opened.
-
-Only the Caddy container receives `/run/family-web` as a read-only directory
-mount. The directory is mode 0700, owned by nginx; this assumes rootful Docker,
-Caddy running as root and no user-namespace remapping. Do not grant family users
-the Docker group or mount this directory in other containers. Socket access
-permits application requests despite the read-only mount. nginx restores the
-client IP from Caddy's forwarding header only on those private sockets.
-
-Configure `cloud.homelab` and `docs.homelab` in AdGuard to resolve to the NAS's
-Tailscale IP, and make that DNS server available to the family devices through
-Tailscale. Each person uses their own Tailscale identity and application account.
-Check the Tailscale plan's current user allowance for four people. Trust Caddy's
-root CA on every browser/app client; do not disable certificate verification.
-Applications may have platform-specific CA trust requirements.
-
-No router port forwarding or Tailscale Funnel is needed. Tailnet membership
-alone is not a least-privilege policy: existing tailnet ACLs/grants are outside
-this repository. The host trusts `tailscale0`, and several admin sites share
-Caddy's port 443. A grant to that port reaches all those sites, not just these
-two hostnames. Do not give family members broad network access assuming this
-configuration prevents access to Cockpit/Portainer/SSH. A hostname-aware access
-boundary or separate listener/node needs a separate design if that is required.
-
-## Activation and administrator bootstrap
-
-On a Docker-only machine, run all pre-deployment checks with:
+Stage only intended new source/test files so the Git-filtered snapshot includes
+them. Never use `git add .` for credential-bearing working directories.
 
 ```sh
 sudo ./scripts/check-flake-docker.sh --full
 ```
 
-Omit sudo if your user already has Docker access. This runs flake evaluation,
-the family application invariants and the homelab system build **inside the same
-container**, stopping at the first failure. No local Nix installation is needed,
-and nothing is deployed or activated. The build can take substantial time and
-disk space. The container's Nix store is disposable: a subsequent run downloads
-or builds again. Boot/login/upload/permission tests still require homelab.
+Omit sudo if your user has Docker access. The script checks the flake, runs the
+Compose/maintenance regression tests with mocked operational commands, evaluates
+NixOS host invariants, and builds the host configuration in one disposable Nix
+container. It stops at the first error and does not deploy/activate anything.
+It streams indexed working-tree files, not `.git` or untracked credentials, into
+the container. Without `--full`, it only checks the flake without building.
+The disposable build can take substantial disk space/time and is not cached
+between runs. Image downloads, application startup and migrations are NOT tested
+by this check; perform the acceptance checks below on homelab.
 
-Without `--full`, the script retains its build-free flake evaluation behavior.
-It streams only Git-indexed working-tree files into a disposable container-owned
-directory, preserving edits/staged additions but excluding `.git` and untracked
-files. This avoids libgit2's host/container ownership mismatch without changing
-Git trust settings or host file ownership. Untracked Nix files are rejected with
-an instruction to stage the intended files. The `path:/workspace` source used
-inside the container contains only that filtered snapshot; the native test
-entry point below continues to use Git filtering. Script regression tests run
-without Docker using:
-
-```sh
-python3 -B -m unittest discover -s tests -p 'test_check_flake_docker.py' -v
-```
-
-From the updated repository on a Nix-enabled machine:
+On a native Nix development machine, the host checks are still available:
 
 ```sh
 nix eval --impure --json --file tests/family-apps.nix
 nix build .#nixosConfigurations.homelab.config.system.build.toplevel --no-link
 ```
 
-New modules must be tracked by Git to participate in flake evaluation. If
-testing uncommitted changes, stage only the intended new module/test files,
-never `.env` or credential files. Do not use `path:.` to bypass Git filtering:
-that can copy untracked credentials into the Nix store. After the checks pass,
-deploy on homelab:
+## Host preparation and credentials
+
+After validation and the fresh-data check, apply on homelab:
 
 ```sh
 sudo nixos-rebuild switch --flake .#homelab
-sudo systemctl status nextcloud-setup paperless-scheduler nginx --no-pager
+sudo prepare-family-apps
 ```
 
-Neither application has a default username/password. Create separate admin
-accounts interactively after setup succeeds; do not put passwords in shell
-arguments, the repository or chat:
+NixOS no longer enables native Nextcloud/Paperless/nginx. It provides the two
+maintenance utilities and a daily backup timer. **Docker startup now requires
+both family datasets to be mounted. If either is unavailable, the whole Docker
+daemon fails closed**, including existing containers. Restore the ZFS mounts
+before restarting Docker; do not remove this check to create data on the root
+filesystem. Long bind syntax also disables automatic source-directory creation.
 
-```sh
-sudo nextcloud-occ user:add --group admin nc-admin
-sudo paperless-manage createsuperuser
-```
+`prepare-family-apps` is root-only and idempotent. It creates private directories
+and five random, newline-free credential files under
+`/var/lib/homelab-app-credentials`. The parent is root-only `0700`; the files are
+readable by the selected container users through Compose secret mounts. Standalone
+Compose secrets are file bind mounts, not an encrypted vault.
 
-These are initial creation commands, not password reset commands. Keep admin
-credentials in your password manager. Leaving bootstrap incomplete leaves the
-applications without a usable administrator; it does not enable anonymous login.
+- `nextcloud_admin`: initial password for **nc-admin**
+- `paperless_admin`: initial password for **paperless-admin**
+- `nextcloud_db`, `paperless_db`: independent database credentials
+- `paperless_key`: persistent application signing key
 
-The Compose directory on homelab must contain the updated Compose file and
-Caddyfile and retain its existing local environment. From that directory:
+Read the two initial administrator credentials locally with root privileges,
+store them in your password manager and do not paste them in chat or Git.
+Bootstrap passwords do not reset an existing account. Editing a database
+credential file does not rotate the PostgreSQL role password. Lost database
+credentials/application keys must be restored, not regenerated after setup.
+Backup the credential directory encrypted off-pool alongside application backups.
+
+## Network and deployment
+
+Caddy remains the only remote entry point through its existing Tailscale-bound
+80/443 publications and internal CA. No new app/database/broker host ports are
+published. Nextcloud and Paperless share a dedicated proxy network with Caddy;
+each database and unauthenticated Redis broker is confined to its own internal
+backend network. Caddy has fixed proxy address **172.30.50.2**; dynamic app IPs
+come from **172.30.50.8/29**, inside **172.30.50.0/28**. Check this subnet does not
+overlap an existing LAN/VPN/Docker route before deployment. Both apps trust only
+that Caddy address for forwarding headers, not the entire homelab subnet.
+
+In AdGuard, resolve `cloud.homelab` and `docs.homelab` to the NAS Tailscale IP.
+Family devices need Tailscale access to that DNS server and must trust Caddy's
+root CA in the actual browser/app client. Do not disable certificate validation.
+Use one Tailscale identity and one application account per person. Check your
+Tailscale plan's four-user allowance. No router forwarding/Funnel is required.
+
+Existing tailnet ACLs/grants are outside the repo. Since admin sites share
+Caddy's 443 port, granting that port does not restrict users to family hostnames.
+This change does not implement hostname-level access separation from Cockpit,
+Portainer, etc.; never give family users Docker/root/admin access by default.
+
+From `modules/docker/homelab` on homelab, retaining its existing local environment:
 
 ```sh
 sudo docker compose config --quiet
-sudo docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
+sudo docker compose up -d nextcloud nextcloud-cron paperless
+sudo docker exec -i caddy caddy validate --config - --adapter caddyfile < Caddyfile
 sudo docker compose up -d --no-deps caddy
+sudo docker compose ps
 ```
 
-Recreating Caddy is necessary for the new socket-directory mount; reload alone
-is insufficient the first time. This briefly affects the existing proxy sites.
-Do not run a whole-stack update or `--remove-orphans` just for these services.
+Dependencies start automatically. Nextcloud's automatic installer uses the
+generated admin credentials; cron waits for its installed/ready healthcheck.
+Paperless has its own bootstrap administrator and built-in startup migrations.
+Allow several minutes for first initialization; inspect logs if readiness fails.
+Do not erase volumes or replace credentials as a startup repair.
 
-If the old Filebrowser container still exists, stop it and disable its restart
-policy without deleting its data:
+Caddy must be recreated to join the new network and remove its old native-socket
+mount; reload alone is insufficient. The brief recreation affects other proxy
+sites. Do not update/recreate the whole stack or use `--remove-orphans` here.
+
+## Four-person setup and verification
+
+Log in as **nc-admin** and **paperless-admin** only for administration. Create
+four ordinary accounts and a `familie` group in each application.
+
+For Nextcloud, install **Team folders** (`groupfolders`, compatible NC33 release
+21.0.15) from the App Store. It is no longer supplied by a Nix package. Create a
+`Familie` Team Folder and grant the group the required read/write permissions.
+Select Cron background jobs (the container executes them every five minutes):
 
 ```sh
-sudo docker update --restart=no filebrowser
-sudo docker stop filebrowser
+sudo docker compose exec -u www-data nextcloud php occ background:cron
+sudo docker compose exec -u www-data nextcloud php occ config:system:set default_phone_region --value=DE
+sudo docker compose exec -u www-data nextcloud php occ status
 ```
 
-## Four-person onboarding
+Set individual quotas deliberately. Verify private files are mutually hidden,
+the shared folder works, desktop/mobile sync and DAV discovery work, and login
+URLs stay HTTPS. Keep photo backup in Immich rather than duplicating it by default.
 
-In Nextcloud, create four **ordinary** users and a `familie` group. Add those users
-to the group. In the administration settings for Team folders, create `Familie`
-and grant that group the intended read/write permissions. Personal file areas
-remain separate. Decide quotas based on pool capacity; no names, passwords or
-quotas are invented by the configuration. Configure the desktop/mobile clients
-with `https://cloud.homelab` over Tailscale.
+For Paperless, grant ordinary application permissions, including UI settings
+view, but not superuser/workflow-management rights. **Ownerless documents are
+not private; tag permissions are not document permissions.** Verify ownership
+for authenticated uploads with two ordinary accounts, including direct document
+URLs/API and search. Shared documents need explicit `familie` view/edit rights.
+Do not expose the private consume folder until ownership workflows are tested;
+successfully consumed files disappear from that input folder. Never connect it
+to Nextcloud's internal data or your original NAS backup.
 
-In Paperless, create four ordinary users and a `familie` group. Grant the needed
-application permissions (including UI settings view permission), not superuser
-or workflow-management rights. Explicitly set private documents' owner, with no
-additional sharing. Shared documents have an owner plus view/edit permissions
-for `familie`. Superusers can always see all documents.
+Paperless starts with local German/English OCR, no optional AI/remote OCR or
+Office-conversion services. v3 accepts duplicates by default; review them rather
+than silently deleting incoming files. Test a scan, searchable text, upload
+progress and document permissions. Confirm both apps survive a host reboot,
+report real client addresses, and remain unreachable through unintended LAN or
+public host ports. Changing image versions requires these checks again.
 
-**Ownerless Paperless documents are not private.** Tag permissions do not grant
-or restrict document access. Before any shared scanner/mail intake, configure
-and test ownership workflows for each source. The consume directory is private
-and is not shared over Samba. Files successfully consumed are removed from that
-directory; never point it at a NAS backup or Nextcloud's internal data directory.
+## Backup, updates and rollback
 
-## Acceptance checks before real family data
+At 02:30, `family-apps-backup.service` verifies mounts and that app/database
+containers are running. It stops only Nextcloud, its cron container and Paperless,
+writes PostgreSQL custom-format dumps to each app's `backup/database.dump`, then
+atomically snapshots both datasets with a `family-<UTC timestamp>` name. It tries
+to restart all three writers even if a dump/snapshot fails. Only its seven newest
+snapshot names per dataset are kept; **older matching `family-*` restore points
+are automatically deleted**. Sanoid/user snapshots are not pruned by this job.
+Do not use that reserved snapshot naming scheme for manual backups. Nested
+datasets are refused, not silently omitted.
 
-- Both HTTPS URLs validate without certificate warnings on phones and PCs,
-  locally and over mobile data with Tailscale. Without Tailscale, there is no
-  unintended LAN/public entry point.
-- Login/logout and Nextcloud desktop/WebDAV upload/download work; DAV discovery
-  redirects to `/remote.php/dav/`. Test a large file within the 512 MiB request
-  limit (sync clients may use chunks).
-- A German scanned PDF in Paperless is OCR-searchable; upload progress/WebSocket
-  updates work. Its nginx upload limit is 100 MiB per request.
-- With two ordinary test accounts, private documents/files are mutually hidden;
-  shared family content is accessible. Test permissions using the direct document
-  URL/API as well as search, not just dashboard visibility.
-- Application logs show the client address, not one shared proxy address;
-  user-supplied `X-Forwarded-For` must not override it.
-- `ss -ltn` shows Paperless only on `127.0.0.1:28981`, with no new nginx TCP
-  listener. Caddy's existing published ports remain Tailscale-bound.
-- After restarting nginx, Caddy still connects without recreation. After a host
-  reboot, datasets, sockets, PostgreSQL, Redis, cron and both apps recover.
-- `sudo nextcloud-occ status` and `sudo nextcloud-occ app:list` show a healthy
-  installation and enabled `groupfolders`.
-- `systemctl list-timers` includes Nextcloud cron, Paperless export and database
-  backup timers. Inspect failures with `journalctl -u <unit>`.
+This replaces the native database dumps and scheduled Paperless exporter with
+coordinated local restore points, briefly interrupting both apps. No existing
+database dumps or exports are deleted. Check the timer/logs, test a manual run
+when downtime is acceptable (`sudo backup-family-apps`), and perform an isolated
+restore test before trusting it. A forced process/host kill can prevent automatic
+restart; check the three containers and restart them if required.
 
-## Backup and recovery boundary
+These snapshots are **not independent backups**. Copy a matching snapshot (with
+its database dumps) and the separate credential directory to an encrypted
+off-pool destination. Do not mix a dump from one restore point with media/config
+from another. Do not restore a running PostgreSQL data directory as a substitute
+for an intentional recovery plan; use the logical dump with the matching app
+files on an isolated test stack first. Do not alter Immich's host database.
 
-Existing Sanoid snapshots cover both application datasets. Daily PostgreSQL
-dumps of `nextcloud` and `paperless` are configured at 03:30 in the NixOS default
-`/var/backup/postgresql`. Paperless exports run at 02:30 into its dataset's
-`export` directory; the upstream module temporarily stops its application
-services during export and restarts them on success or failure. Allow capacity
-for the additional exported documents. These copies contain sensitive data.
+For a portable Paperless export, the official command is also available:
 
-**This is not yet an independent, coordinated family-data backup.** In
-particular, a Nextcloud file snapshot and a database dump from different times
-are not guaranteed to form a consistent restore point. Before relying on the
-services, choose an encrypted off-pool destination, capture Nextcloud config,
-data and database while writes/background jobs are quiesced, copy the Paperless
-export and relevant configuration/key material, and test restoration in an
-isolated instance. Do not restore these applications over the live shared
-PostgreSQL cluster or disturb Immich.
+```sh
+sudo docker compose exec -T paperless document_exporter ../export
+```
 
-Relevant upstream guidance:
+That manual live export is not the coordinated snapshot job above. Keep the
+output private and copy it off-pool. Review version-specific restore guidance:
+
 - https://docs.nextcloud.com/server/33/admin_manual/maintenance/backup.html
 - https://docs.nextcloud.com/server/33/admin_manual/maintenance/restore.html
-- https://github.com/paperless-ngx/paperless-ngx/blob/v2.20.11/docs/administration.md
-- https://github.com/paperless-ngx/paperless-ngx/blob/v2.20.11/docs/usage.md#permissions
+- https://github.com/paperless-ngx/paperless-ngx/blob/v3.3.0/docs/administration.md
 
-Removing the NixOS imports disables the applications but does not constitute
-data deletion. Preserve datasets, databases and the previous configuration.
-After an application schema migration, a NixOS generation rollback alone is
-**not** a safe application downgrade: restore matching files and database from
-a tested backup instead.
+Before updates, back up and review release notes, especially database and app
+major changes. Image rollback does not undo a migrated database. To stop the
+new apps without deleting data, use targeted `docker compose stop` for the seven
+family services and adjust the two proxy routes. Never use `down -v` as rollback.

@@ -151,30 +151,32 @@ class DockerFlakeCheckTests(unittest.TestCase):
     def nix_commands(self):
         return [json.loads(line) for line in self.nix_log.read_text().splitlines()]
 
-    def test_full_runs_all_three_stages_without_activation(self):
+    def test_full_runs_all_four_stages_without_activation(self):
         result = self.run_check("--full")
         self.assertEqual(result.returncode, 0, result.stderr)
         result = self.run_container_payload()
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = self.nix_commands()
-        self.assertEqual([c[0] for c in commands], ["flake", "eval", "build"])
+        self.assertEqual([c[0] for c in commands], ["flake", "shell", "eval", "build"])
         self.assertIn("--no-build", commands[0])
-        self.assertIn("/workspace/tests/family-apps-checks.nix", commands[1][-1])
-        self.assertIn('builtins.getFlake "path:/workspace"', commands[1][-1])
-        self.assertIn("--no-link", commands[2])
+        self.assertIn("test_*.py", commands[1])
+        self.assertIn("/workspace/tests/family-apps-checks.nix", commands[2][-1])
+        self.assertIn('builtins.getFlake "path:/workspace"', commands[2][-1])
+        self.assertIn("--no-link", commands[3])
         self.assertEqual(
-            commands[2][-1],
+            commands[3][-1],
             "path:/workspace#nixosConfigurations.homelab.config.system.build.toplevel",
         )
         for command in commands:
             self.assertIn("--no-write-lock-file", command)
-        self.assertIn(b"All three stages passed", result.stdout)
+        self.assertIn(b"All four stages passed", result.stdout)
 
     def test_full_stops_at_each_failed_stage(self):
         for stage, expected in (
             ("flake", ["flake"]),
-            ("eval", ["flake", "eval"]),
-            ("build", ["flake", "eval", "build"]),
+            ("shell", ["flake", "shell"]),
+            ("eval", ["flake", "shell", "eval"]),
+            ("build", ["flake", "shell", "eval", "build"]),
         ):
             with self.subTest(stage=stage):
                 self.nix_log.write_text("")
@@ -184,7 +186,7 @@ class DockerFlakeCheckTests(unittest.TestCase):
                 result = self.run_container_payload()
                 self.assertEqual(result.returncode, 23, result.stderr)
                 self.assertEqual([c[0] for c in self.nix_commands()], expected)
-                self.assertNotIn(b"All three stages passed", result.stdout)
+                self.assertNotIn(b"All four stages passed", result.stdout)
 
     def test_default_still_only_checks_flake(self):
         result = self.run_check("--show-trace")

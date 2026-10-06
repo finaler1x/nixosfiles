@@ -1,0 +1,88 @@
+# Prepared production target. Do not start the server until final restore and
+# native application masking are complete; see README. Native stays default.
+name: immich-production
+
+x-managed: &managed
+  restart: unless-stopped
+  labels:
+    com.centurylinklabs.watchtower.enable: "false"
+
+services:
+  database:
+    <<: *managed
+    image: ghcr.io/immich-app/postgres:16-vectorchord1.1.1-pgvector0.8.5@sha256:55f26df547e5ea79779dc3af78e335cf607f409486673e163d5187a9224e538b
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD_FILE: /run/secrets/immich_db_password
+      POSTGRES_INITDB_ARGS: --data-checksums
+    secrets: [immich_db_password]
+    shm_size: 128mb
+    volumes:
+      - type: bind
+        source: /storage/apps/immich-docker/postgres
+        target: /var/lib/postgresql/data
+        bind: {create_host_path: false}
+    networks: [backend]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres, -d, immich]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    <<: *managed
+    image: docker.io/valkey/valkey:9@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  immich-server:
+    <<: *managed
+    image: ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2
+    profiles: [production]
+    environment:
+      DB_HOSTNAME: database
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD_FILE: /run/secrets/immich_db_password
+      DB_VECTOR_EXTENSION: vectorchord
+      REDIS_HOSTNAME: redis
+      IMMICH_MEDIA_LOCATION: /storage/apps/immich
+      IMMICH_MACHINE_LEARNING_ENABLED: "false"
+    secrets: [immich_db_password]
+    volumes:
+      - type: bind
+        source: /storage/apps/immich-docker/media
+        target: /storage/apps/immich
+        bind: {create_host_path: false}
+    # Preserve Caddy's host.docker.internal:2283 and existing direct IPv4 URLs.
+    # Native's wildcard listener MUST be stopped before these can be bound.
+    ports:
+      - "172.18.0.1:2283:2283"
+      - "192.168.178.75:2283:2283"
+      - "100.99.212.33:2283:2283"
+      - "127.0.0.1:2283:2283"
+    networks: [backend, homelab]
+    depends_on:
+      database: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    stop_grace_period: 5m
+    healthcheck:
+      disable: false
+
+secrets:
+  immich_db_password:
+    file: /storage/apps/immich-docker/db-password
+
+networks:
+  backend:
+    internal: true
+  homelab:
+    external: true
+    name: homelab

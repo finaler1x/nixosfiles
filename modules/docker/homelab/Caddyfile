@@ -48,12 +48,12 @@ cockpit.homelab {
   reverse_proxy host.docker.internal:9090
 }
 
-# ── Native family services ────────────────────────────────
+# ── Family services (Immich remains native) ────────────────
 
 cloud.homelab {
   redir /.well-known/carddav /remote.php/dav/ 301
   redir /.well-known/caldav /remote.php/dav/ 301
-  reverse_proxy unix//run/family-web/nextcloud.sock {
+  reverse_proxy nextcloud:80 {
     header_up Host cloud.homelab
   }
 }
@@ -63,7 +63,7 @@ photos.homelab {
 }
 
 docs.homelab {
-  reverse_proxy unix//run/family-web/paperless.sock {
+  reverse_proxy paperless:8000 {
     header_up Host docs.homelab
   }
 }

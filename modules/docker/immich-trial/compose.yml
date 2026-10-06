@@ -1,0 +1,77 @@
+# Isolated restore rehearsal, NOT a replacement for the native service.
+# Start database/redis, restore the dump, then explicitly enable profile trial.
+name: immich-docker-trial
+
+x-trial: &trial
+  restart: "no"
+  labels:
+    com.centurylinklabs.watchtower.enable: "false"
+
+services:
+  database:
+    <<: *trial
+    image: ghcr.io/immich-app/postgres:16-vectorchord1.1.1-pgvector0.8.5@sha256:55f26df547e5ea79779dc3af78e335cf607f409486673e163d5187a9224e538b
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD_FILE: /run/secrets/trial_db_password
+      POSTGRES_INITDB_ARGS: --data-checksums
+    secrets: [trial_db_password]
+    shm_size: 128mb
+    volumes:
+      - type: bind
+        source: /storage/immich-docker-trial/postgres
+        target: /var/lib/postgresql/data
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres, -d, immich]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    <<: *trial
+    image: docker.io/valkey/valkey:9@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  immich-server:
+    <<: *trial
+    image: ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2
+    profiles: [trial]
+    environment:
+      DB_HOSTNAME: database
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD_FILE: /run/secrets/trial_db_password
+      DB_VECTOR_EXTENSION: vectorchord
+      REDIS_HOSTNAME: redis
+      # Preserve native paths INSIDE the container, but mount ONLY the clone.
+      IMMICH_MEDIA_LOCATION: /storage/apps/immich
+      IMMICH_MACHINE_LEARNING_ENABLED: "false"
+    secrets: [trial_db_password]
+    volumes:
+      - type: bind
+        source: /storage/immich-docker-trial/media
+        target: /storage/apps/immich
+        bind: {create_host_path: false}
+    # No host publication on the internal-only network. SSH forwards directly
+    # to this container's bridge IP; see README for discovery and verification.
+    depends_on:
+      database: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      disable: false
+
+secrets:
+  trial_db_password:
+    file: /storage/immich-docker-trial/db-password
+
+networks:
+  default:
+    internal: true

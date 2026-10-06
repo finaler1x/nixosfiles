@@ -20,7 +20,7 @@ case "${1:-}" in
       'Usage: check-flake-docker.sh [NIX_FLAKE_CHECK_ARGUMENTS...]' \
       '       check-flake-docker.sh --full' \
       'Default: flake check without building.' \
-      '--full: flake check, family application invariants, then homelab system build.' \
+      '--full: flake check, Compose/maintenance tests, host invariants, homelab build.' \
       'All Nix operations run in Docker. Nothing is deployed or activated.'
     exit 0
     ;;
@@ -81,15 +81,22 @@ git -C "${repo_root}" ls-files --cached --deduplicate -z |
     if [ "$mode" = check ]; then
       exec nix flake check --no-build --no-write-lock-file path:/workspace "$@"
     fi
-    printf "%s\n" "[1/3] Flake evaluation"
+    printf "%s\n" "[1/4] Flake evaluation"
     nix flake check --no-build --no-write-lock-file path:/workspace
-    printf "%s\n" "[2/3] Family application invariants"
+    printf "%s\n" "[2/4] Compose and maintenance regression tests"
+    nix shell --impure --no-write-lock-file --expr '\''
+      let
+        flake = builtins.getFlake "path:/workspace";
+        pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+      in pkgs.python3.withPackages (p: [ p.pyyaml ])
+    '\'' --command python3 -B -m unittest discover -s tests -p "test_*.py" -v
+    printf "%s\n" "[3/4] Family host invariants"
     nix eval --impure --json --no-write-lock-file --expr '\''
       import /workspace/tests/family-apps-checks.nix
         (builtins.getFlake "path:/workspace")
     '\''
-    printf "\n%s\n" "[3/3] Homelab system build (no activation)"
+    printf "\n%s\n" "[4/4] Homelab system build (no activation)"
     nix build --no-link --no-write-lock-file \
       path:/workspace#nixosConfigurations.homelab.config.system.build.toplevel
-    printf "%s\n" "All three stages passed. No deployment or runtime test was performed."
+    printf "%s\n" "All four stages passed. No deployment or application runtime test was performed."
   ' check-flake "${mode}" "$@"

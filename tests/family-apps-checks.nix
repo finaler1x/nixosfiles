@@ -3,54 +3,40 @@ flake:
 let
   cfg = flake.nixosConfigurations.homelab.config;
   lib = flake.inputs.nixpkgs.lib;
+  dockerCfg = (flake.nixosConfigurations.homelab.extendModules {
+    modules = [ { homelab.immichDeployment = lib.mkForce "docker"; } ];
+  }).config;
   checks = {
     nixosAssertions = lib.all (a: a.assertion) cfg.assertions;
-    nextcloudEnabled = cfg.services.nextcloud.enable;
-    paperlessEnabled = cfg.services.paperless.enable;
-    noNginxTcpListeners = lib.all
-      (host: host.listen != [ ]
-        && lib.all (listener: lib.hasPrefix "unix:" listener.addr && listener.port == null) host.listen
-        && !host.forceSSL && !host.addSSL && !host.onlySSL)
-      (builtins.attrValues cfg.services.nginx.virtualHosts);
-    nextcloudPrivateListener = cfg.services.nginx.virtualHosts."cloud.homelab".listen == [
-      {
-        addr = "unix:/run/family-web/nextcloud.sock";
-        port = null;
-        ssl = false;
-        proxyProtocol = false;
-        extraParameters = [ ];
-      }
-    ];
-    paperlessPrivateListener = cfg.services.nginx.virtualHosts."docs.homelab".listen == [
-      {
-        addr = "unix:/run/family-web/paperless.sock";
-        port = null;
-        ssl = false;
-        proxyProtocol = false;
-        extraParameters = [ ];
-      }
-    ] && cfg.services.paperless.address == "127.0.0.1";
-    noBootstrapPasswords = cfg.services.nextcloud.config.adminuser == null
-      && cfg.services.nextcloud.config.adminpassFile == null
-      && cfg.services.paperless.passwordFile == null
-      && !(cfg.services.paperless.settings ? PAPERLESS_AUTO_LOGIN_USERNAME);
-    privatePaperlessInbox = !cfg.services.paperless.consumptionDirIsPublic
-      && cfg.systemd.tmpfiles.settings."10-paperless"."/storage/apps/paperless/consume".d.mode == "0700";
-    nextcloudStorageGuards = lib.all
-      (name: cfg.systemd.services.${name}.unitConfig.AssertPathIsMountPoint == "/storage/apps/nextcloud")
-      [ "nextcloud-setup" "nextcloud-update-db" "nextcloud-cron" "phpfpm-nextcloud" ];
-    paperlessStorageGuards = lib.all
-      (name: cfg.systemd.services.${name}.unitConfig.AssertPathIsMountPoint == "/storage/apps/paperless")
-      [ "paperless-scheduler" "paperless-consumer" "paperless-task-queue" "paperless-web" "paperless-exporter" ];
-    databasesManagedLocally = cfg.services.nextcloud.database.createLocally
-      && cfg.services.paperless.database.createLocally
-      && lib.all (name: builtins.elem name cfg.services.postgresql.ensureDatabases)
-        [ "nextcloud" "paperless" ];
-    databaseDumpsEnabled = cfg.services.postgresqlBackup.enable
-      && lib.all (name: builtins.elem name cfg.services.postgresqlBackup.databases)
-        [ "nextcloud" "paperless" ];
-    familyFoldersInstalled = cfg.services.nextcloud.extraApps ? groupfolders;
+    nativeAppsDisabled = !cfg.services.nextcloud.enable && !cfg.services.paperless.enable;
+    noNativeProxy = !cfg.services.nginx.enable;
+    dockerEnabled = cfg.virtualisation.docker.enable;
+    dockerMountGuards = lib.all
+      (path: builtins.elem path cfg.systemd.services.docker.unitConfig.AssertPathIsMountPoint)
+      [ "/storage/apps/nextcloud" "/storage/apps/paperless" ];
+    noFamilyDatabasesInHostCluster = lib.all
+      (name: !(builtins.elem name cfg.services.postgresql.ensureDatabases))
+      [ "nextcloud" "paperless" ];
+    # NixOS normalizes startAt to a list even when configured as one string.
+    coordinatedBackupRegistered = cfg.systemd.services.family-apps-backup.enable
+      && cfg.systemd.services.family-apps-backup.startAt == [ "*-*-* 02:30:00" ];
+    existingSnapshotsPreserved = lib.all
+      (dataset: cfg.services.sanoid.datasets.${dataset}.useTemplate == [ "data" ])
+      [ "storage/apps/nextcloud" "storage/apps/paperless" ];
     existingImmichPreserved = cfg.services.immich.enable;
+    immichApplicationOwner = cfg.systemd.services.immich-server.enable == (cfg.homelab.immichDeployment == "native");
+    immichDockerVariantValid = lib.all (a: a.assertion) dockerCfg.assertions;
+    immichDockerMasksNative = !dockerCfg.systemd.services.immich-server.enable;
+    immichRollbackPackageRetained = lib.any
+      (package: toString package == toString dockerCfg.services.immich.package)
+      dockerCfg.system.extraDependencies;
+    immichRollbackDependenciesPreserved = dockerCfg.services.postgresql.enable
+      && dockerCfg.services.redis.servers.immich.enable
+      && dockerCfg.services.immich.mediaLocation == "/storage/apps/immich";
+    immichDockerStorageProtected = lib.all
+      (path: builtins.elem path dockerCfg.systemd.services.docker.unitConfig.AssertPathIsMountPoint)
+      [ "/storage/apps/immich-docker" "/storage/apps/immich-docker/media" ];
+    immichDockerSnapshotsRecursive = dockerCfg.services.sanoid.datasets."storage/apps/immich-docker".recursive == "zfs";
   };
 in
 builtins.mapAttrs (name: passed:
