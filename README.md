@@ -10,31 +10,37 @@ NixOS homelab — NAS managed from one repo.
 
 ## Services
 
-All web UIs are at `*.home.local` — requires AdGuard DNS rewrites pointing to the NAS IP.
+Web UI routes are defined in `modules/docker/homelab/Caddyfile` at `*.homelab`.
+They require AdGuard DNS rewrites pointing to the NAS Tailscale IP.
 TLS via Caddy's internal CA (`local_certs`). Import the root cert once per device:
 ```bash
 docker exec caddy cat /data/caddy/pki/authorities/local/root.crt
 ```
 
-### homelab (modules/docker/homelab/)
+### homelab (Compose and native NixOS services)
 
 | Domain | Service |
 |--------|---------|
-| `adguard.home.local` | AdGuard Home — DNS + ad blocker |
-| `files.home.local` | Filebrowser — web file manager |
-| `sync.home.local` | Syncthing — device sync |
-| `dash.home.local` | Homarr — dashboard |
-| `vault.home.local` | Vaultwarden — password manager |
-| `status.home.local` | Uptime Kuma — monitoring |
-| `ntfy.home.local` | Ntfy — push notifications |
-| `photos.home.local` | Immich — photo/video management |
-| `docs.home.local` | Paperless-ngx — document management |
-| `portainer.home.local` | Portainer — Docker management |
-| `logs.home.local` | Dozzle — container logs |
+| `adguard.homelab` | AdGuard Home — DNS + ad blocker |
+| `sync.homelab` | Syncthing — device sync |
+| `dash.homelab` | Homarr — dashboard |
+| `vault.homelab` | Vaultwarden — password manager |
+| `status.homelab` | Uptime Kuma — monitoring |
+| `ntfy.homelab` | Ntfy — push notifications |
+| `photos.homelab` | Immich — photo/video management |
+| `cloud.homelab` | Nextcloud — native NixOS family files and Team folders |
+| `docs.homelab` | Paperless-ngx — native NixOS document management |
+| `portainer.homelab` | Portainer — Docker management |
+| `logs.homelab` | Dozzle — container logs |
 
-Cockpit is available at `http://homelab:9090`.
+Cockpit is available at `https://cockpit.homelab` through the same proxy.
 
-## Storage (NAS)
+Nextcloud and Paperless setup, four-person permissions, Tailscale/CA requirements,
+verification and backup limitations: [Family applications](docs/family-apps.md).
+They use `/storage/apps/nextcloud` and `/storage/apps/paperless`, not the legacy
+`/mnt/storage` layout below. Their PostgreSQL databases live in the host cluster.
+
+## Legacy storage layout (inactive mergerfs configuration)
 
 ```
 /mnt/storage/          ← mergerfs pool (4x 4TB, epmfs)

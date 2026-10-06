@@ -16,10 +16,6 @@ adguard.homelab {
   reverse_proxy adguardhome:80
 }
 
-files.homelab {
-  reverse_proxy filebrowser:80
-}
-
 sync.homelab {
   reverse_proxy syncthing:8384
 }
@@ -52,12 +48,22 @@ cockpit.homelab {
   reverse_proxy host.docker.internal:9090
 }
 
-# ── Immich + Paperless ────────────────────────────────────
+# ── Native family services ────────────────────────────────
+
+cloud.homelab {
+  redir /.well-known/carddav /remote.php/dav/ 301
+  redir /.well-known/caldav /remote.php/dav/ 301
+  reverse_proxy unix//run/family-web/nextcloud.sock {
+    header_up Host cloud.homelab
+  }
+}
 
 photos.homelab {
   reverse_proxy host.docker.internal:2283
 }
 
 docs.homelab {
-  reverse_proxy paperless:8000
+  reverse_proxy unix//run/family-web/paperless.sock {
+    header_up Host docs.homelab
+  }
 }

@@ -21,18 +21,6 @@ services:
     #   Upstream DNS: 1.1.1.1, 9.9.9.9
     #   DNS rewrites: *.home.local → NAS_IP
 
-  # ── Filebrowser ───────────────────────────────────────
-  filebrowser:
-    image: filebrowser/filebrowser:latest
-    container_name: filebrowser
-    restart: unless-stopped
-    volumes:
-      - /mnt/storage:/srv
-      - /mnt/storage/docker/nas/filebrowser/database.db:/database.db
-      - /mnt/storage/docker/nas/filebrowser/settings.json:/.filebrowser.json
-    networks:
-      - homelab
-
   # ── Syncthing ─────────────────────────────────────────
   syncthing:
     image: syncthing/syncthing:latest
@@ -141,6 +129,14 @@ services:
       - "${TAILSCALE_IP}:443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Native family apps: no additional host TCP ports. NixOS creates this
+      # directory; fail instead of silently creating a root-owned substitute.
+      - type: bind
+        source: /run/family-web
+        target: /run/family-web
+        read_only: true
+        bind:
+          create_host_path: false
       - /mnt/storage/docker/nas/caddy/data:/data
       - /mnt/storage/docker/nas/caddy/config:/config
     extra_hosts:
