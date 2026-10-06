@@ -18,10 +18,11 @@ configured here. The supported deployment path below is host Compose.
 
 All seven containers have immutable image digests and are excluded from
 Watchtower. Updating requires reviewing and changing both the tag and digest.
-No image is pulled by a NixOS rebuild. Immich remains native at its existing pin;
+No image is pulled by a NixOS rebuild. Immich has its own production Compose stack;
 Vaultwarden, other services, flake inputs and `stateVersion` are unchanged.
 The new databases are separate containers: never restore them over Immich's
-host PostgreSQL cluster. PostgreSQL 18 mounts `/var/lib/postgresql`, not the old
+retained native PostgreSQL cluster or its separate production container.
+PostgreSQL 18 mounts `/var/lib/postgresql`, not the old
 `/var/lib/postgresql/data` layout.
 
 ## Fresh installation only

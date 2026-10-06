@@ -1,6 +1,8 @@
 { config, pkgs, lib, ... }:
 
 {
+  homelab.immichDeployment = "docker";
+
   imports = [
     ./hardware-configuration.nix
     ../../nixos/common.nix

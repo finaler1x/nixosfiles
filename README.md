@@ -39,12 +39,13 @@ Nextcloud and Paperless setup, four-person permissions, Tailscale/CA requirement
 verification and backup limitations: [Family applications](docs/family-apps.md).
 They use `/storage/apps/nextcloud` and `/storage/apps/paperless`, not the legacy
 `/mnt/storage` layout below. Each has its own PostgreSQL/Redis containers; Immich
-continues to use the native host services. Versions are pinned and excluded from
+has a separate production Compose stack. Versions are pinned and excluded from
 Watchtower. NixOS supplies storage guards and coordinated local backups.
 
-Immich remains native by default. The [prepared Docker cutover](modules/docker/immich/README.md)
-uses a fresh final copy and an explicit native/Docker selector; it does not
-activate the production container or reuse the isolated trial automatically.
+The homelab host explicitly selects Docker for Immich. Its native application is
+masked, while native dependencies and original data remain for rollback. See
+[Immich production and recovery](modules/docker/immich/README.md); do not repeat
+the completed migration or replace production media with the isolated trial.
 
 ## Legacy storage layout (inactive mergerfs configuration)
 

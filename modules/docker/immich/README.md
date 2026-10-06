@@ -1,9 +1,13 @@
-# Prepared production cutover: Immich 3.2.4
+# Immich 3.2.4: production and migration reference
 
-**Preparation is not activation.** The repository defaults to
-`homelab.immichDeployment = "native"`; no native service is stopped by adding this
-Compose file. Do not execute the freeze/activation sections until the downtime
-window has been explicitly agreed. Review other pending host changes too.
+**The homelab host now selects `homelab.immichDeployment = "docker"`.** The native
+application is masked; its dependencies and original data are retained for
+rollback. The module's fallback remains `native` if the explicit host selection
+is removed. Compose deployment is separate from the NixOS activation.
+
+The cutover below is a migration reference, not a setup to repeat on the running
+production instance. Do not recreate datasets, repeat the restore, or delete
+originals. Any future migration requires a separately agreed downtime window.
 
 The isolated trial restored successfully; the user confirmed login, visible
 photos and matching image/video counts. Original downloads/video playback still
